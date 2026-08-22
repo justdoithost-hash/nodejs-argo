@@ -1,966 +1,970 @@
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CodeFlow | Visual Development Platform</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <title>悠然垂钓 - 享受宁静的水边时光</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'Roboto', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background-color: #f9fbfd;
+            font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+            color: #2c3e50;
+            line-height: 1.8;
+            background: #f0f4f8;
         }
-        
-        h1, h2, h3, h4 {
-            font-family: 'Poppins', sans-serif;
-            font-weight: 600;
-            line-height: 1.3;
-        }
-        
-        .container {
+
+        /* ========== 导航栏 ========== */
+        nav {
+            position: fixed;
+            top: 0;
             width: 100%;
+            background: rgba(15, 52, 96, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 0;
+            z-index: 1000;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.3);
+        }
+
+        nav .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             max-width: 1200px;
             margin: 0 auto;
-            padding: 0 20px;
+            padding: 0 30px;
         }
-        
-        /* Header & Navigation */
-        header {
-            background-color: #fff;
-            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.05);
-            position: fixed;
-            width: 100%;
-            z-index: 1000;
-        }
-        
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0;
-        }
-        
-        .logo {
-            display: flex;
-            align-items: center;
-        }
-        
-        .logo-icon {
-            color: #4361ee;
-            font-size: 28px;
-            margin-right: 10px;
-        }
-        
-        .logo-text {
-            font-family: 'Poppins', sans-serif;
+
+        nav .logo {
             font-size: 24px;
-            font-weight: 700;
-            color: #333;
+            font-weight: bold;
+            color: #fff;
+            text-decoration: none;
         }
-        
-        .logo-text span {
-            color: #4361ee;
+
+        nav .logo span {
+            color: #4ecdc4;
         }
-        
-        .nav-links {
+
+        /* 汉堡菜单按钮（默认隐藏） */
+        .menu-toggle {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            gap: 5px;
+        }
+
+        .menu-toggle span {
+            width: 25px;
+            height: 3px;
+            background: #fff;
+            border-radius: 3px;
+            transition: all 0.3s;
+        }
+
+        nav ul {
             display: flex;
             list-style: none;
+            gap: 30px;
         }
-        
-        .nav-links li {
-            margin-left: 30px;
-        }
-        
-        .nav-links a {
+
+        nav ul li a {
+            color: #ddd;
             text-decoration: none;
-            color: #555;
-            font-weight: 500;
+            font-size: 15px;
             transition: color 0.3s;
+            position: relative;
         }
-        
-        .nav-links a:hover {
-            color: #4361ee;
+
+        nav ul li a::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: #4ecdc4;
+            transition: width 0.3s;
         }
-        
-        .cta-button {
-            background-color: #4361ee;
-            color: white;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 6px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.2s;
+
+        nav ul li a:hover {
+            color: #4ecdc4;
         }
-        
-        .cta-button:hover {
-            background-color: #3a56d4;
-            transform: translateY(-2px);
+
+        nav ul li a:hover::after {
+            width: 100%;
         }
-        
-        .mobile-menu-btn {
-            display: none;
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: #333;
-            cursor: pointer;
-        }
-        
-        /* Hero Section */
+
+        /* ========== 英雄区域 ========== */
         .hero {
-            padding: 150px 0 100px;
-            background: linear-gradient(135deg, #f0f4ff 0%, #f9fbfd 100%);
-        }
-        
-        .hero-content {
+            height: 100vh;
+            background: linear-gradient(135deg, #0f3460 0%, #16537e 30%, #1a6fa0 60%, #4ecdc4 100%);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
         }
-        
-        .hero-text {
-            flex: 1;
-            padding-right: 40px;
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 120px;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 120'%3E%3Cpath fill='%23f0f4f8' d='M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,48C672,43,768,53,864,64C960,75,1056,85,1152,80C1248,75,1344,53,1392,42.7L1440,32L1440,120L0,120Z'/%3E%3C/svg%3E") no-repeat bottom;
+            background-size: cover;
         }
-        
-        .hero-text h1 {
-            font-size: 48px;
+
+        .hero-content h1 {
+            font-size: 56px;
+            color: #fff;
             margin-bottom: 20px;
-            color: #222;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
-        
-        .hero-text h1 span {
-            color: #4361ee;
-        }
-        
-        .hero-text p {
-            font-size: 18px;
-            color: #666;
-            margin-bottom: 30px;
+
+        .hero-content p {
+            font-size: 20px;
+            color: rgba(255,255,255,0.9);
             max-width: 600px;
+            margin: 0 auto 40px;
         }
-        
-        .hero-buttons {
+
+        .hero-btn {
+            display: inline-block;
+            padding: 15px 40px;
+            background: #4ecdc4;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 5px 20px rgba(78, 205, 196, 0.4);
+        }
+
+        .hero-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(78, 205, 196, 0.6);
+        }
+
+        /* ========== 通用区域样式 ========== */
+        section {
+            padding: 100px 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 15px;
+            color: #0f3460;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 60px;
+            font-size: 16px;
+        }
+
+        /* ========== 关于垂钓 ========== */
+        .about-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .about-image {
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, #1a6fa0, #4ecdc4);
+            border-radius: 20px;
             display: flex;
-            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            font-size: 120px;
+            box-shadow: 0 20px 60px rgba(15, 52, 96, 0.3);
         }
-        
-        .secondary-button {
-            background-color: white;
-            color: #4361ee;
-            border: 2px solid #4361ee;
-            padding: 12px 28px;
-            border-radius: 6px;
-            font-weight: 600;
+
+        .about-text h3 {
+            font-size: 28px;
+            color: #0f3460;
+            margin-bottom: 20px;
+        }
+
+        .about-text p {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 15px;
+        }
+
+        /* ========== 装备指南 ========== */
+        .gear-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        .gear-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 40px 30px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            transition: all 0.3s;
+        }
+
+        .gear-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+
+        .gear-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+
+        .gear-card h3 {
+            font-size: 20px;
+            color: #0f3460;
+            margin-bottom: 12px;
+        }
+
+        .gear-card p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        /* ========== 技巧分享 ========== */
+        .tips-section {
+            background: linear-gradient(135deg, #0f3460, #16537e);
+            border-radius: 30px;
+            padding: 80px 60px;
+            color: #fff;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .tips-section .section-title {
+            color: #fff;
+        }
+
+        .tips-section .section-subtitle {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .tips-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+        }
+
+        .tip-item {
+            background: rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+
+        .tip-item:hover {
+            background: rgba(255,255,255,0.15);
+            transform: scale(1.02);
+        }
+
+        .tip-item .tip-number {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            background: #4ecdc4;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 40px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .tip-item h4 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .tip-item p {
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+        }
+
+        /* ========== 钓点推荐 ========== */
+        .spots-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        .spot-card {
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            background: #fff;
+        }
+
+        .spot-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+
+        .spot-image {
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+        }
+
+        .spot-card:nth-child(1) .spot-image { background: linear-gradient(135deg, #667eea, #764ba2); }
+        .spot-card:nth-child(2) .spot-image { background: linear-gradient(135deg, #f093fb, #f5576c); }
+        .spot-card:nth-child(3) .spot-image { background: linear-gradient(135deg, #4facfe, #00f2fe); }
+
+        .spot-info {
+            padding: 25px;
+        }
+
+        .spot-info h3 {
+            font-size: 18px;
+            color: #0f3460;
+            margin-bottom: 8px;
+        }
+
+        .spot-info p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .spot-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #e8f8f5;
+            color: #4ecdc4;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-right: 8px;
+        }
+
+        /* ========== 联系区域 ========== */
+        .contact-section {
+            text-align: center;
+            background: #fff;
+            border-radius: 30px;
+            padding: 80px 60px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            max-width: 800px;
+            margin: 0 auto 100px;
+        }
+
+        .contact-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        .contact-form input,
+        .contact-form textarea {
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+            outline: none;
+        }
+
+        .contact-form input:focus,
+        .contact-form textarea:focus {
+            border-color: #4ecdc4;
+        }
+
+        .contact-form textarea {
+            height: 120px;
+            resize: vertical;
+        }
+
+        .contact-form button {
+            padding: 15px;
+            background: linear-gradient(135deg, #0f3460, #4ecdc4);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
         }
-        
-        .secondary-button:hover {
-            background-color: #f0f4ff;
+
+        .contact-form button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(78, 205, 196, 0.4);
         }
-        
-        .hero-image {
-            flex: 1;
-            text-align: center;
-        }
-        
-        .hero-image img {
-            max-width: 100%;
-            border-radius: 10px;
-            box-shadow: 0 20px 40px rgba(67, 97, 238, 0.15);
-        }
-        
-        /* Features Section */
-        .section-title {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-        
-        .section-title h2 {
-            font-size: 36px;
-            color: #222;
-            margin-bottom: 15px;
-        }
-        
-        .section-title p {
-            color: #666;
-            max-width: 700px;
-            margin: 0 auto;
-        }
-        
-        .features {
-            padding: 100px 0;
-            background-color: white;
-        }
-        
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 40px;
-        }
-        
-        .feature-card {
-            background: #fff;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
-        }
-        
-        .feature-icon {
-            background-color: #eef2ff;
-            color: #4361ee;
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 20px;
-            font-size: 28px;
-        }
-        
-        .feature-card h3 {
-            font-size: 22px;
-            margin-bottom: 15px;
-        }
-        
-        .feature-card p {
-            color: #666;
-        }
-        
-        /* Benefits Section */
-        .benefits {
-            padding: 100px 0;
-            background-color: #f0f4ff;
-        }
-        
-        .benefits-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-        }
-        
-        .benefit-item {
-            text-align: center;
-            padding: 30px 20px;
-        }
-        
-        .benefit-icon {
-            color: #4361ee;
-            font-size: 40px;
-            margin-bottom: 20px;
-        }
-        
-        .benefit-item h3 {
-            font-size: 22px;
-            margin-bottom: 15px;
-        }
-        
-        .benefit-item p {
-            color: #666;
-        }
-        
-        /* Testimonials */
-        .testimonials {
-            padding: 100px 0;
-            background-color: white;
-        }
-        
-        .testimonial-slider {
-            max-width: 800px;
-            margin: 0 auto;
-            position: relative;
-        }
-        
-        .testimonial {
-            background: #f9fbfd;
-            padding: 40px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
-        }
-        
-        .testimonial-text {
-            font-size: 18px;
-            font-style: italic;
-            margin-bottom: 30px;
-            color: #555;
-        }
-        
-        .testimonial-author {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .author-avatar {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background-color: #ddd;
-            margin-right: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            color: #4361ee;
-            font-size: 24px;
-        }
-        
-        .author-info h4 {
-            font-size: 18px;
-            margin-bottom: 5px;
-        }
-        
-        .author-info p {
-            color: #777;
-            font-size: 14px;
-        }
-        
-        /* Pricing Section */
-        .pricing {
-            padding: 100px 0;
-            background-color: #f9fbfd;
-        }
-        
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 30px;
-        }
-        
-        .pricing-card {
-            background: white;
-            border-radius: 10px;
-            padding: 40px 30px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.05);
-            text-align: center;
-            transition: transform 0.3s;
-        }
-        
-        .pricing-card.featured {
-            border-top: 5px solid #4361ee;
-            transform: scale(1.05);
-            position: relative;
-        }
-        
-        .featured-badge {
-            position: absolute;
-            top: -12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #4361ee;
-            color: white;
-            padding: 5px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        
-        .pricing-card:hover {
-            transform: translateY(-10px);
-        }
-        
-        .pricing-card.featured:hover {
-            transform: scale(1.05) translateY(-10px);
-        }
-        
-        .plan-name {
-            font-size: 24px;
-            margin-bottom: 15px;
-            color: #333;
-        }
-        
-        .plan-price {
-            font-size: 48px;
-            font-weight: 700;
-            color: #4361ee;
-            margin-bottom: 20px;
-        }
-        
-        .plan-price span {
-            font-size: 16px;
-            color: #777;
-        }
-        
-        .plan-features {
-            list-style: none;
-            margin-bottom: 30px;
-        }
-        
-        .plan-features li {
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-            color: #555;
-        }
-        
-        .plan-features li:last-child {
-            border-bottom: none;
-        }
-        
-        /* CTA Section */
-        .cta-section {
-            padding: 100px 0;
-            background: linear-gradient(135deg, #4361ee 0%, #3a56d4 100%);
-            text-align: center;
-            color: white;
-        }
-        
-        .cta-section h2 {
-            font-size: 36px;
-            margin-bottom: 20px;
-        }
-        
-        .cta-section p {
-            font-size: 18px;
-            max-width: 700px;
-            margin: 0 auto 30px;
-            opacity: 0.9;
-        }
-        
-        .cta-section .cta-button {
-            background-color: white;
-            color: #4361ee;
-            font-size: 16px;
-            padding: 15px 40px;
-        }
-        
-        .cta-section .cta-button:hover {
-            background-color: #f0f4ff;
-        }
-        
-        /* Footer */
+
+        /* ========== 页脚 ========== */
         footer {
-            background-color: #222;
-            color: #ccc;
-            padding: 70px 0 20px;
-        }
-        
-        .footer-content {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 40px;
-            margin-bottom: 50px;
-        }
-        
-        .footer-column h3 {
-            font-size: 20px;
-            color: white;
-            margin-bottom: 25px;
-        }
-        
-        .footer-links {
-            list-style: none;
-        }
-        
-        .footer-links li {
-            margin-bottom: 12px;
-        }
-        
-        .footer-links a {
-            color: #aaa;
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-        
-        .footer-links a:hover {
-            color: #4361ee;
-        }
-        
-        .copyright {
+            background: #0f3460;
+            color: #fff;
             text-align: center;
-            padding-top: 20px;
-            border-top: 1px solid #444;
+            padding: 40px 30px;
+        }
+
+        footer p {
+            color: rgba(255,255,255,0.6);
             font-size: 14px;
-            color: #888;
         }
-        
-        /* Responsive Design */
-        @media (max-width: 992px) {
-            .hero-content {
-                flex-direction: column;
+
+        footer .footer-links {
+            margin-bottom: 20px;
+        }
+
+        footer .footer-links a {
+            color: #4ecdc4;
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 14px;
+        }
+
+        /* ========== 响应式适配 - 平板 (max-width: 1024px) ========== */
+        @media (max-width: 1024px) {
+            .gear-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
-            
-            .hero-text {
-                padding-right: 0;
-                margin-bottom: 50px;
-                text-align: center;
+
+            .spots-grid {
+                grid-template-columns: repeat(2, 1fr);
             }
-            
-            .hero-text p {
-                margin: 0 auto 30px;
+
+            .about-grid {
+                gap: 40px;
             }
-            
-            .pricing-card.featured {
-                transform: none;
+
+            .about-image {
+                height: 350px;
             }
-            
-            .pricing-card.featured:hover {
-                transform: translateY(-10px);
+
+            .tips-section {
+                padding: 60px 40px;
+            }
+
+            .contact-section {
+                padding: 60px 40px;
             }
         }
-        
+
+        /* ========== 响应式适配 - 手机竖屏 (max-width: 768px) ========== */
         @media (max-width: 768px) {
-            .nav-links {
-                display: none;
+            /* 导航栏：显示汉堡菜单，隐藏默认列表 */
+            .menu-toggle {
+                display: flex;
             }
-            
-            .mobile-menu-btn {
-                display: block;
-            }
-            
-            .hero-text h1 {
-                font-size: 36px;
-            }
-            
-            .section-title h2 {
-                font-size: 30px;
-            }
-            
-            .hero-buttons {
+
+            nav ul {
+                position: fixed;
+                top: 60px;
+                left: 0;
+                width: 100%;
+                background: rgba(15, 52, 96, 0.98);
                 flex-direction: column;
                 align-items: center;
+                gap: 0;
+                padding: 0;
+                max-height: 0;
+                overflow: hidden;
+                transition: max-height 0.4s ease, padding 0.4s ease;
             }
-            
-            .hero-buttons button {
+
+            nav ul.active {
+                max-height: 400px;
+                padding: 20px 0;
+            }
+
+            nav ul li {
                 width: 100%;
-                max-width: 300px;
+                text-align: center;
             }
-        }
-        
-        @media (max-width: 576px) {
-            .hero {
-                padding: 130px 0 80px;
+
+            nav ul li a {
+                display: block;
+                padding: 15px 0;
+                font-size: 16px;
             }
-            
-            .features, .benefits, .testimonials, .pricing, .cta-section {
-                padding: 70px 0;
+
+            nav ul li a::after {
+                display: none;
             }
-            
-            .feature-card, .testimonial {
-                padding: 25px;
-            }
-            
-            .plan-price {
+
+            /* 英雄区域 */
+            .hero-content h1 {
                 font-size: 36px;
             }
+
+            .hero-content p {
+                font-size: 16px;
+                margin-left: 15px;
+                margin-right: 15px;
+            }
+
+            .hero-btn {
+                padding: 12px 30px;
+                font-size: 14px;
+            }
+
+            /* 通用区域 */
+            section {
+                padding: 60px 20px;
+            }
+
+            .section-title {
+                font-size: 28px;
+                margin-bottom: 10px;
+            }
+
+            .section-subtitle {
+                margin-bottom: 40px;
+                font-size: 14px;
+            }
+
+            /* 关于垂钓 - 上下排列 */
+            .about-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+
+            .about-image {
+                height: 280px;
+                font-size: 80px;
+            }
+
+            .about-text h3 {
+                font-size: 22px;
+            }
+
+            .about-text p {
+                font-size: 14px;
+            }
+
+            /* 装备指南 - 单列 */
+            .gear-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .gear-card {
+                padding: 30px 20px;
+            }
+
+            .gear-icon {
+                font-size: 50px;
+            }
+
+            /* 技巧分享 */
+            .tips-section {
+                border-radius: 20px;
+                padding: 50px 25px;
+                margin-left: 10px;
+                margin-right: 10px;
+            }
+
+            .tips-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .tip-item {
+                padding: 25px;
+            }
+
+            /* 钓点推荐 - 单列 */
+            .spots-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .spot-image {
+                height: 160px;
+                font-size: 50px;
+            }
+
+            /* 联系区域 */
+            .contact-section {
+                border-radius: 20px;
+                padding: 50px 25px;
+                margin-left: 10px;
+                margin-right: 10px;
+                margin-bottom: 60px;
+            }
+
+            .contact-form input,
+            .contact-form textarea {
+                padding: 12px 16px;
+                font-size: 14px;
+            }
+
+            .contact-form button {
+                padding: 12px;
+                font-size: 14px;
+            }
+        }
+
+        /* ========== 响应式适配 - 小屏手机 (max-width: 480px) ========== */
+        @media (max-width: 480px) {
+            .hero-content h1 {
+                font-size: 28px;
+            }
+
+            .hero-content p {
+                font-size: 14px;
+            }
+
+            .section-title {
+                font-size: 24px;
+            }
+
+            .about-image {
+                height: 220px;
+                font-size: 60px;
+            }
+
+            .about-text h3 {
+                font-size: 20px;
+            }
+
+            .gear-card h3 {
+                font-size: 18px;
+            }
+
+            .gear-card p {
+                font-size: 13px;
+            }
+
+            .tip-item h4 {
+                font-size: 16px;
+            }
+
+            .tip-item p {
+                font-size: 13px;
+            }
+
+            .spot-info h3 {
+                font-size: 16px;
+            }
+
+            .spot-info p {
+                font-size: 13px;
+            }
+
+            footer .footer-links a {
+                display: block;
+                margin: 8px 0;
+            }
+        }
+
+        /* ========== 横屏手机适配 ========== */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .hero {
+                height: auto;
+                min-height: 100vh;
+                padding: 80px 20px 60px;
+            }
+
+            .hero-content h1 {
+                font-size: 32px;
+            }
+
+            .hero-content p {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+
+            .hero-btn {
+                padding: 10px 25px;
+            }
+        }
+
+        /* ========== 打印样式 ========== */
+        @media print {
+            nav, .hero-btn, .contact-form, footer .footer-links {
+                display: none;
+            }
+
+            .hero {
+                height: auto;
+                padding: 40px 20px;
+                background: #0f3460 !important;
+                -webkit-print-color-adjust: exact;
+            }
+
+            .hero::before {
+                display: none;
+            }
+
+            .hero-content h1 {
+                font-size: 32px;
+                color: #fff;
+            }
+
+            .hero-content p {
+                color: #ddd;
+            }
+
+            section {
+                padding: 30px 20px;
+            }
+
+            .tips-section {
+                background: #0f3460 !important;
+                -webkit-print-color-adjust: exact;
+            }
+        }
+
+        /* ========== 滚动平滑 ========== */
+        html {
+            scroll-behavior: smooth;
+        }
+
+        /* ========== 滚动条美化 ========== */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f0f4f8;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #4ecdc4;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3db8b0;
         }
     </style>
 </head>
 <body>
-    <!-- Header & Navigation -->
-    <header>
-        <div class="container">
-            <nav>
-                <div class="logo">
-                    <div class="logo-icon"><i class="fas fa-bezier-curve"></i></div>
-                    <div class="logo-text">Code<span>Flow</span></div>
-                </div>
-                
-                <ul class="nav-links">
-                    <li><a href="#features">Features</a></li>
-                    <li><a href="#benefits">Benefits</a></li>
-                    <li><a href="#testimonials">Testimonials</a></li>
-                    <li><a href="#pricing">Pricing</a></li>
-                    <li><a href="#">Resources</a></li>
-                </ul>
-                
-                <button class="cta-button">Start Free Trial</button>
-                <button class="mobile-menu-btn"><i class="fas fa-bars"></i></button>
-            </nav>
-        </div>
-    </header>
 
-    <!-- Hero Section -->
-    <section class="hero">
+    <!-- 导航栏 -->
+    <nav>
         <div class="container">
-            <div class="hero-content">
-                <div class="hero-text">
-                    <h1>Build Apps Faster With <span>Visual Development</span></h1>
-                    <p>CodeFlow empowers teams to create enterprise-grade applications with minimal coding. Drag, drop, and connect components to build powerful web and mobile apps in record time.</p>
-                    <div class="hero-buttons">
-                        <button class="cta-button">Start Building Free</button>
-                        <button class="secondary-button">Watch Demo</button>
-                    </div>
+            <a href="#" class="logo">悠然<span>垂钓</span></a>
+            <div class="menu-toggle" id="menuToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+            <ul id="navMenu">
+                <li><a href="#about">关于垂钓</a></li>
+                <li><a href="#gear">装备指南</a></li>
+                <li><a href="#tips">技巧分享</a></li>
+                <li><a href="#spots">钓点推荐</a></li>
+                <li><a href="#contact">联系我们</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 英雄区域 -->
+    <div class="hero">
+        <div class="hero-content">
+            <h1>悠然垂钓</h1>
+            <p>在水边静候，感受自然的呼吸。垂钓不仅是一项运动，更是一种生活的态度与修行。</p>
+            <a href="#about" class="hero-btn">探索垂钓世界</a>
+        </div>
+    </div>
+
+    <!-- 关于垂钓 -->
+    <section id="about">
+        <h2 class="section-title">关于垂钓</h2>
+        <p class="section-subtitle">一项跨越千年的优雅运动</p>
+        <div class="about-grid">
+            <div class="about-image">🎣</div>
+            <div class="about-text">
+                <h3>享受宁静，回归自然</h3>
+                <p>垂钓是一项古老而优雅的运动，它让我们在繁忙的都市生活中找到片刻的宁静。当你坐在水边，看着浮漂轻轻晃动，所有的烦恼都会随风而去。</p>
+                <p>无论是清晨的薄雾中，还是黄昏的余晖下，一根鱼竿、一池碧水，便能开启一段与自然对话的美妙旅程。</p>
+                <p>垂钓教会我们耐心与专注，也让我们学会尊重自然、保护生态。每一次出钓，都是一次心灵的洗礼。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 装备指南 -->
+    <section id="gear">
+        <h2 class="section-title">装备指南</h2>
+        <p class="section-subtitle">工欲善其事，必先利其器</p>
+        <div class="gear-grid">
+            <div class="gear-card">
+                <div class="gear-icon">🎋</div>
+                <h3>鱼竿</h3>
+                <p>根据垂钓场景选择手竿、海竿或路亚竿。新手建议从3.6米或4.5米手竿入手，轻便易操控。</p>
+            </div>
+            <div class="gear-card">
+                <div class="gear-icon">🪝</div>
+                <h3>鱼线与鱼钩</h3>
+                <p>主线与子线的搭配至关重要，根据目标鱼种选择合适的线径和钩型，确保强度与灵敏度的平衡。</p>
+            </div>
+            <div class="gear-card">
+                <div class="gear-icon">🪱</div>
+                <h3>饵料</h3>
+                <p>活饵如蚯蚓、红虫适合野钓，商品饵料则方便高效。了解目标鱼种的食性是选择饵料的关键。</p>
+            </div>
+            <div class="gear-card">
+                <div class="gear-icon">🪣</div>
+                <h3>辅助工具</h3>
+                <p>抄网、鱼护、钓箱、遮阳伞等辅助装备，能让你的垂钓体验更加舒适便捷。</p>
+            </div>
+            <div class="gear-card">
+                <div class="gear-icon">🔮</div>
+                <h3>浮漂</h3>
+                <p>浮漂是钓鱼人的眼睛，不同材质和形状的浮漂适用于不同水域和鱼情，学会调漂是基本功。</p>
+            </div>
+            <div class="gear-card">
+                <div class="gear-icon">🧢</div>
+                <h3>穿着装备</h3>
+                <p>防晒衣、钓鱼帽、偏光镜、防滑鞋，做好防护才能安心享受垂钓的乐趣。</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- 技巧分享 -->
+    <section id="tips">
+        <div class="tips-section">
+            <h2 class="section-title">垂钓技巧</h2>
+            <p class="section-subtitle">掌握这些技巧，让你事半功倍</p>
+            <div class="tips-grid">
+                <div class="tip-item">
+                    <div class="tip-number">1</div>
+                    <h4>选好钓位</h4>
+                    <p>俗话说"三分钓技，七分钓位"。选择有水草、回湾、进出水口附近的位置，这些地方往往是鱼群聚集的热点。</p>
                 </div>
-                <div class="hero-image">
-                    <img src="https://images.unsplash.com/photo-1551650975-87deedd944c3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="CodeFlow Platform Interface">
+                <div class="tip-item">
+                    <div class="tip-number">2</div>
+                    <h4>精准打窝</h4>
+                    <p>打窝是聚鱼的关键步骤。窝料要虚实结合，既有粉末状诱鱼，又有颗粒状留鱼，做到少量多次补窝。</p>
+                </div>
+                <div class="tip-item">
+                    <div class="tip-number">3</div>
+                    <h4>灵活调漂</h4>
+                    <p>根据水深、水流和鱼情调整浮漂的灵敏度。灵则信号明显但易误判，钝则稳定但可能错过轻口。</p>
+                </div>
+                <div class="tip-item">
+                    <div class="tip-number">4</div>
+                    <h4>把握提竿时机</h4>
+                    <p>观察浮漂信号，区分鱼蹭线和真实咬钩。一般来说，浮漂先点后沉或先点后送顶时提竿，中鱼率最高。</p>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="features" id="features">
-        <div class="container">
-            <div class="section-title">
-                <h2>Powerful Features for Rapid Development</h2>
-                <p>CodeFlow provides all the tools you need to build, deploy, and scale applications without writing extensive code.</p>
+    <!-- 钓点推荐 -->
+    <section id="spots">
+        <h2 class="section-title">钓点推荐</h2>
+        <p class="section-subtitle">精选优质垂钓胜地</p>
+        <div class="spots-grid">
+            <div class="spot-card">
+                <div class="spot-image">🏞️</div>
+                <div class="spot-info">
+                    <h3>千岛湖</h3>
+                    <p>湖水清澈见底，鱼类资源丰富，是淡水垂钓的绝佳去处。可垂钓鲈鱼、鳜鱼等多种淡水鱼。</p>
+                    <span class="spot-tag">淡水</span>
+                    <span class="spot-tag">水库</span>
+                </div>
             </div>
-            
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-th-large"></i>
-                    </div>
-                    <h3>Visual Builder</h3>
-                    <p>Drag and drop UI components to design responsive interfaces. Connect data sources with simple point-and-click actions.</p>
+            <div class="spot-card">
+                <div class="spot-image">🌊</div>
+                <div class="spot-info">
+                    <h3>三亚亚龙湾</h3>
+                    <p>热带海洋垂钓体验，可挑战石斑、鲷鱼等热带鱼类，感受海钓的刺激与乐趣。</p>
+                    <span class="spot-tag">海钓</span>
+                    <span class="spot-tag">热带</span>
                 </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-database"></i>
-                    </div>
-                    <h3>Database Integration</h3>
-                    <p>Connect to any data source with built-in connectors. Automatically generate CRUD operations without writing SQL.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-mobile-alt"></i>
-                    </div>
-                    <h3>Cross-Platform</h3>
-                    <p>Build once, deploy everywhere. Generate applications for web, iOS, and Android from a single visual design.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-code"></i>
-                    </div>
-                    <h3>Extensible with Code</h3>
-                    <p>Add custom functionality with JavaScript when needed. Our platform doesn't limit your creativity or complexity.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-shield-alt"></i>
-                    </div>
-                    <h3>Enterprise Security</h3>
-                    <p>Built-in authentication, authorization, and data encryption. SOC2 compliant with enterprise-grade security features.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-rocket"></i>
-                    </div>
-                    <h3>One-Click Deployment</h3>
-                    <p>Deploy to cloud or on-premises with a single click. Automatic scaling and monitoring included.</p>
+            </div>
+            <div class="spot-card">
+                <div class="spot-image">🏔️</div>
+                <div class="spot-info">
+                    <h3>丽江泸沽湖</h3>
+                    <p>高原湖泊，风景如画。在纯净的自然环境中垂钓，享受身心与自然的深度融合。</p>
+                    <span class="spot-tag">高原</span>
+                    <span class="spot-tag">湖泊</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Benefits Section -->
-    <section class="benefits" id="benefits">
-        <div class="container">
-            <div class="section-title">
-                <h2>Why Choose CodeFlow?</h2>
-                <p>Join thousands of companies accelerating their digital transformation with low-code development.</p>
-            </div>
-            
-            <div class="benefits-grid">
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <i class="fas fa-bolt"></i>
-                    </div>
-                    <h3>10x Faster Development</h3>
-                    <p>Build applications in days instead of months with visual development tools.</p>
-                </div>
-                
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <i class="fas fa-money-bill-wave"></i>
-                    </div>
-                    <h3>Reduce Costs by 70%</h3>
-                    <p>Lower development and maintenance costs with fewer resources required.</p>
-                </div>
-                
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h3>Citizen Developers</h3>
-                    <p>Enable business users to build solutions with minimal IT assistance.</p>
-                </div>
-                
-                <div class="benefit-item">
-                    <div class="benefit-icon">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <h3>Scale Effortlessly</h3>
-                    <p>From prototype to enterprise-scale applications with the same platform.</p>
-                </div>
-            </div>
+    <!-- 联系区域 -->
+    <section id="contact">
+        <div class="contact-section">
+            <h2 class="section-title">联系我们</h2>
+            <p class="section-subtitle">有任何问题或建议？欢迎留言</p>
+            <form class="contact-form" onsubmit="handleSubmit(event)">
+                <input type="text" placeholder="您的姓名" required>
+                <input type="email" placeholder="您的邮箱" required>
+                <textarea placeholder="请输入您的留言内容..." required></textarea>
+                <button type="submit">发送留言</button>
+            </form>
         </div>
     </section>
 
-    <!-- Testimonials -->
-    <section class="testimonials" id="testimonials">
-        <div class="container">
-            <div class="section-title">
-                <h2>Trusted by Industry Leaders</h2>
-                <p>See what our customers have to say about their experience with CodeFlow.</p>
-            </div>
-            
-            <div class="testimonial-slider">
-                <div class="testimonial">
-                    <div class="testimonial-text">
-                        "CodeFlow transformed how we deliver solutions to our business units. What used to take 6 months now takes 3 weeks. Our development team can focus on complex problems while business teams build their own solutions."
-                    </div>
-                    <div class="testimonial-author">
-                        <div class="author-avatar">SC</div>
-                        <div class="author-info">
-                            <h4>Sarah Chen</h4>
-                            <p>CTO, TechGrowth Inc.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Pricing Section -->
-    <section class="pricing" id="pricing">
-        <div class="container">
-            <div class="section-title">
-                <h2>Simple, Transparent Pricing</h2>
-                <p>Choose the plan that fits your needs. All plans include core features with no hidden fees.</p>
-            </div>
-            
-            <div class="pricing-grid">
-                <div class="pricing-card">
-                    <h3 class="plan-name">Starter</h3>
-                    <div class="plan-price">$29<span>/month</span></div>
-                    <ul class="plan-features">
-                        <li>Up to 5 users</li>
-                        <li>10 GB storage</li>
-                        <li>Basic components</li>
-                        <li>Community support</li>
-                        <li>1 production app</li>
-                    </ul>
-                    <button class="secondary-button">Get Started</button>
-                </div>
-                
-                <div class="pricing-card featured">
-                    <div class="featured-badge">Most Popular</div>
-                    <h3 class="plan-name">Professional</h3>
-                    <div class="plan-price">$89<span>/month</span></div>
-                    <ul class="plan-features">
-                        <li>Up to 25 users</li>
-                        <li>100 GB storage</li>
-                        <li>All components</li>
-                        <li>Priority support</li>
-                        <li>10 production apps</li>
-                        <li>Custom branding</li>
-                    </ul>
-                    <button class="cta-button">Try Free for 14 Days</button>
-                </div>
-                
-                <div class="pricing-card">
-                    <h3 class="plan-name">Enterprise</h3>
-                    <div class="plan-price">Custom</div>
-                    <ul class="plan-features">
-                        <li>Unlimited users</li>
-                        <li>Unlimited storage</li>
-                        <li>All features included</li>
-                        <li>24/7 dedicated support</li>
-                        <li>Unlimited apps</li>
-                        <li>On-premises option</li>
-                    </ul>
-                    <button class="secondary-button">Contact Sales</button>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta-section">
-        <div class="container">
-            <h2>Start Building Today</h2>
-            <p>Join over 10,000 companies that use CodeFlow to accelerate their application development. No credit card required for the free trial.</p>
-            <button class="cta-button">Get Started for Free</button>
-        </div>
-    </section>
-
-    <!-- Footer -->
+    <!-- 页脚 -->
     <footer>
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-column">
-                    <div class="logo">
-                        <div class="logo-icon"><i class="fas fa-bezier-curve"></i></div>
-                        <div class="logo-text">Code<span>Flow</span></div>
-                    </div>
-                    <p style="margin-top: 20px; color: #aaa;">The leading visual development platform for building enterprise applications with minimal coding.</p>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Product</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">Features</a></li>
-                        <li><a href="#">Pricing</a></li>
-                        <li><a href="#">Use Cases</a></li>
-                        <li><a href="#">Integrations</a></li>
-                        <li><a href="#">Roadmap</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Resources</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">Documentation</a></li>
-                        <li><a href="#">Tutorials</a></li>
-                        <li><a href="#">Blog</a></li>
-                        <li><a href="#">Community</a></li>
-                        <li><a href="#">Support</a></li>
-                    </ul>
-                </div>
-                
-                <div class="footer-column">
-                    <h3>Company</h3>
-                    <ul class="footer-links">
-                        <li><a href="#">About Us</a></li>
-                        <li><a href="#">Careers</a></li>
-                        <li><a href="#">Contact</a></li>
-                        <li><a href="#">Privacy Policy</a></li>
-                        <li><a href="#">Terms of Service</a></li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="copyright">
-                <p>&copy; 2023 CodeFlow. All rights reserved.</p>
-            </div>
+        <div class="footer-links">
+            <a href="#about">关于垂钓</a>
+            <a href="#gear">装备指南</a>
+            <a href="#tips">技巧分享</a>
+            <a href="#spots">钓点推荐</a>
         </div>
+        <p>&copy; 2026 悠然垂钓. 享受宁静的水边时光.</p>
     </footer>
 
     <script>
-        // Mobile menu toggle
-        document.querySelector('.mobile-menu-btn').addEventListener('click', function() {
-            const navLinks = document.querySelector('.nav-links');
-            navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
-            
-            // Adjust for mobile
-            if (window.innerWidth <= 768) {
-                if (navLinks.style.display === 'flex') {
-                    navLinks.style.flexDirection = 'column';
-                    navLinks.style.position = 'absolute';
-                    navLinks.style.top = '80px';
-                    navLinks.style.left = '0';
-                    navLinks.style.width = '100%';
-                    navLinks.style.backgroundColor = 'white';
-                    navLinks.style.padding = '20px';
-                    navLinks.style.boxShadow = '0 10px 20px rgba(0,0,0,0.1)';
-                    
-                    const navItems = document.querySelectorAll('.nav-links li');
-                    navItems.forEach(item => {
-                        item.style.margin = '10px 0';
-                    });
-                }
+        // 汉堡菜单切换
+        const menuToggle = document.getElementById('menuToggle');
+        const navMenu = document.getElementById('navMenu');
+
+        menuToggle.addEventListener('click', () => {
+            navMenu.classList.toggle('active');
+        });
+
+        // 点击导航链接后自动关闭菜单
+        document.querySelectorAll('#navMenu a').forEach(link => {
+            link.addEventListener('click', () => {
+                navMenu.classList.remove('active');
+            });
+        });
+
+        // 导航栏滚动效果
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(15, 52, 96, 0.98)';
+            } else {
+                nav.style.background = 'rgba(15, 52, 96, 0.95)';
             }
         });
-        
-        // Smooth scrolling for anchor links
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function(e) {
-                e.preventDefault();
-                
-                const targetId = this.getAttribute('href');
-                if(targetId === '#') return;
-                
-                const targetElement = document.querySelector(targetId);
-                if(targetElement) {
-                    window.scrollTo({
-                        top: targetElement.offsetTop - 80,
-                        behavior: 'smooth'
-                    });
-                    
-                    // Close mobile menu if open
-                    if(window.innerWidth <= 768) {
-                        document.querySelector('.nav-links').style.display = 'none';
-                    }
-                }
-            });
-        });
-        
-        // Simple testimonial slider
-        const testimonials = [
-            {
-                text: "CodeFlow transformed how we deliver solutions to our business units. What used to take 6 months now takes 3 weeks. Our development team can focus on complex problems while business teams build their own solutions.",
-                name: "Sarah Chen",
-                position: "CTO, TechGrowth Inc.",
-                initials: "SC"
-            },
-            {
-                text: "We reduced our app development time by 80% using CodeFlow. The visual interface made it easy for our analysts to build data dashboards without waiting for IT resources.",
-                name: "Marcus Johnson",
-                position: "Director of Operations, DataCorp",
-                initials: "MJ"
-            },
-            {
-                text: "As a non-technical founder, CodeFlow allowed me to build our MVP in just 2 months. I could test ideas quickly and iterate based on user feedback without deep coding knowledge.",
-                name: "Lisa Wang",
-                position: "Founder, StartupLabs",
-                initials: "LW"
-            }
-        ];
-        
-        let currentTestimonial = 0;
-        const testimonialElement = document.querySelector('.testimonial');
-        
-        function rotateTestimonial() {
-            currentTestimonial = (currentTestimonial + 1) % testimonials.length;
-            updateTestimonial();
+
+        // 表单提交处理
+        function handleSubmit(e) {
+            e.preventDefault();
+            alert('感谢您的留言！我们会尽快回复您。');
+            e.target.reset();
         }
-        
-        function updateTestimonial() {
-            const testimonial = testimonials[currentTestimonial];
-            testimonialElement.innerHTML = `
-                <div class="testimonial-text">"${testimonial.text}"</div>
-                <div class="testimonial-author">
-                    <div class="author-avatar">${testimonial.initials}</div>
-                    <div class="author-info">
-                        <h4>${testimonial.name}</h4>
-                        <p>${testimonial.position}</p>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Auto-rotate testimonials every 5 seconds
-        setInterval(rotateTestimonial, 5000);
-        
-        // CTA button interactions
-        document.querySelectorAll('.cta-button').forEach(button => {
-            button.addEventListener('click', function() {
-                alert('Thank you for your interest in CodeFlow! You would be redirected to the signup page in a real implementation.');
-            });
-        });
-        
-        // Pricing card interactions
-        document.querySelectorAll('.pricing-card button').forEach(button => {
-            button.addEventListener('click', function() {
-                const planName = this.closest('.pricing-card').querySelector('.plan-name').textContent;
-                alert(`You selected the ${planName} plan. In a real implementation, you would be redirected to the checkout process.`);
-            });
-        });
     </script>
 </body>
 </html>
