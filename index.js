@@ -1,6 +1,48 @@
 #!/usr/bin/env node
 /**
-
+ * ============================================================================
+ *  sing-box 多协议节点一键部署脚本（Node.js 版）
+ * ----------------------------------------------------------------------------
+ *  功能：
+ *    - 一键部署 vless(reality) / vmess(ws) / trojan(ws) / hysteria2 / tuic
+ *    - vmess / trojan 通过 Cloudflare Argo 隧道对外暴露（可选）
+ *    - 内置 komari 监控端对接（替代旧版 NEZHA）
+ *    - 各协议相同配置项统一前置管理，修改一处全生效
+ *
+ *  运行环境：Linux（VPS / Railway / Northflank 等容器）
+ *  启动方式：node index.js
+ *
+ *  输出文件（与本脚本同目录）：
+ *    nodes.txt         节点分享链接（每次启动覆盖更新）
+ *
+ *  运行时文件（组件运行所需）：
+ *    config.json       生成的 sing-box 配置
+ *    bin/              下载的组件（sing-box / cloudflared / komari-agent / 证书）
+ *
+ *  环境变量（均可选，不填使用默认值）：
+ *    UUID              全协议共用 UUID（不填则每次启动随机生成）
+ *    NAME              节点名称前缀                    默认 sing-box
+ *    PORT / WEB_PORT   探活 HTTP 端口                  默认 3000
+ *    REALITY_SNI       Reality 握手域名（SNI）         默认 www.yahoo.com
+ *    XPATH             vmess/trojan 共用 WS 路径       默认 /wo
+ *    HOST              节点对外 IP/域名（不填自动获取公网 IP）
+ *    KOMARI_ENDPOINT   komari 面板地址，如 https://v.cws.kdns.fr
+ *    KOMARI_TOKEN      komari 节点 Token
+ *    KOMARI_AGENT_URL  komari-agent 下载地址（可选，覆盖默认地址）
+ *    ARGO_DOMAIN       Argo 隧道域名
+ *    ARGO_AUTH         Argo 隧道 Token 或 JSON 凭证
+ *    ARGO_PORT         Argo 隧道本地端口（vmess/trojan ws 入口） 默认 8011
+ *    CHAT_ID           Telegram chat_id（与 BOT_TOKEN 齐全才推送）
+ *    BOT_TOKEN         Telegram bot_token（与 CHAT_ID 齐全才推送）
+ *    SINGBOX_AMD64_URL     sing-box 下载源（amd64）    默认 https://amd64.ssss.nyc.mn/sb
+ *    SINGBOX_ARM64_URL     sing-box 下载源（arm64）    默认 https://arm64.ssss.nyc.mn/sb
+ *    CLOUDFLARED_AMD64_URL cloudflared 下载源（amd64） 默认 https://amd64.ssss.nyc.mn/bot
+ *    CLOUDFLARED_ARM64_URL cloudflared 下载源（arm64） 默认 https://arm64.ssss.nyc.mn/bot
+ *    GH_PROXY          GitHub 加速前缀（用于 komari-agent 下载），如 https://ghproxy.net/
+ *    ENABLE_HY2        是否启用 hysteria2（true/false，默认 false 不启用）
+ *    ENABLE_TUIC       是否启用 tuic（true/false，默认 true）
+ *                      ※ hy2 与 tuic 均为 UDP，PaaS 平台通常只能暴露一个
+ * ============================================================================
  */
 
 'use strict';
@@ -265,7 +307,8 @@ function buildSingBoxConfig({ privateKey, shortId, tlsCert }) {
       tls: {
         enabled: true,
         server_name: SHARED.sni,
-        utls: { enabled: true, fingerprint: SHARED.fingerprint },
+        // 注意：utls 是客户端特性，服务端入站不支持（新版 sing-box 会报 unknown field），
+        // 指纹已通过节点链接的 fp 参数下发给客户端
         reality: {
           enabled: true,
           handshake: { server: SHARED.sni, server_port: 443 },
