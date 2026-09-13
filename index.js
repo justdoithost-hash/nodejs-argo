@@ -119,6 +119,22 @@ const NODES_FILE = path.join(__dirname, 'nodes.txt');
 const children = [];
 let shuttingDown = false;
 
+/**
+ * 注册子进程并统一处理启动错误（避免 spawn 失败变成未捕获异常拖垮脚本）
+ * @param fatal true 时启动失败将退出脚本（仅用于 sing-box 等关键组件）
+ */
+function watchChild(child, tag, fatal = false) {
+  children.push(child);
+  child.on('error', (err) => {
+    log(tag, `进程启动失败: ${err.message}`);
+    if (fatal && !shuttingDown) {
+      log(tag, '关键组件启动失败，脚本退出以便容器重启');
+      process.exit(1);
+    }
+  });
+  return child;
+}
+
 /** 统一日志格式 */
 function log(tag, msg) {
   console.log(`[${new Date().toISOString()}] [${tag}] ${msg}`);
@@ -225,7 +241,7 @@ function buildSingBoxConfig({ privateKey, shortId, tlsCert }) {
       tag: 'vmess-ws',
       listen: SHARED.listenLocal,
       listen_port: Number(ARGO_PORT),
-      users: [{ uuid: SHARED.uuid, alter_id: 0 }],
+      users: [{ uuid: SHARED.uuid }], // 新版 sing-box 已移除 alter_id 字段，不能再写
       transport: { ...SHARED.ws },
     },
 
@@ -337,8 +353,11 @@ async function generateTlsCert() {
 /** 启动 sing-box 主进程 */
 function startSingBox(sbBin) {
   log('sing-box', '启动 sing-box ...');
-  const child = spawn(sbBin, ['run', '-c', SB_CONFIG_FILE], { stdio: 'inherit' });
-  children.push(child);
+  const child = watchChild(
+    spawn(sbBin, ['run', '-c', SB_CONFIG_FILE], { stdio: 'inherit' }),
+    'sing-box',
+    true
+  );
   child.on('exit', (code) => {
     if (shuttingDown) return;
     log('sing-box', `进程异常退出（代码 ${code}），脚本即将退出以便容器重启`);
@@ -367,10 +386,10 @@ async function setupKomari() {
     await downloadFile(url, bin);
     fs.chmodSync(bin, 0o755);
   }
-  const child = spawn(bin, ['-e', CONFIG.komariEndpoint, '-t', CONFIG.komariToken], {
-    stdio: 'ignore',
-  });
-  children.push(child);
+  watchChild(
+    spawn(bin, ['-e', CONFIG.komariEndpoint, '-t', CONFIG.komariToken], { stdio: 'ignore' }),
+    'komari'
+  );
   log('komari', `监控端已启动 → ${CONFIG.komariEndpoint}`);
 }
 
@@ -401,8 +420,7 @@ async function setupArgo() {
     args = ['tunnel', '--no-autoupdate', 'run', '--token', CONFIG.argoAuth];
   }
 
-  const child = spawn(bin, args, { stdio: 'ignore' });
-  children.push(child);
+  watchChild(spawn(bin, args, { stdio: 'ignore' }), 'argo');
   log('argo', `隧道已启动 → ${CONFIG.argoDomain}`);
 }
 
@@ -577,8 +595,9 @@ async function main() {
   log('sing-box', `配置已生成: ${SB_CONFIG_FILE}`);
 
   startSingBox(sbBin);
-  await setupKomari();
-  await setupArgo();
+  // komari / argo 安装或启动失败只记日志，不影响节点运行
+  await setupKomari().catch((err) => log('komari', `安装/启动失败(不影响节点): ${err.message}`));
+  await setupArgo().catch((err) => log('argo', `启动失败(不影响节点): ${err.message}`));
   startWebServer();
 
   const links = printNodeLinks({
