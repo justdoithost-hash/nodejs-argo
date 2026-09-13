@@ -1,669 +1,925 @@
 #!/usr/bin/env node
-/**
- * ============================================================================
- *  sing-box 多协议节点一键部署脚本（Node.js 版）
- * ----------------------------------------------------------------------------
- *  功能：
- *    - 一键部署 vless(reality) / vmess(ws) / trojan(ws) / hysteria2 / tuic
- *    - vmess / trojan 通过 Cloudflare Argo 隧道对外暴露（可选）
- *    - 内置 komari 监控端对接（替代旧版 NEZHA）
- *    - 各协议相同配置项统一前置管理，修改一处全生效
- *
- *  运行环境：Linux（VPS / Railway / Northflank 等容器）
- *  启动方式：node index.js
- *
- *  输出文件（与本脚本同目录）：
- *    nodes.txt         节点分享链接（每次启动覆盖更新）
- *
- *  运行时文件（组件运行所需）：
- *    config.json       生成的 sing-box 配置
- *    bin/              下载的组件（sing-box / cloudflared / komari-agent / 证书）
- *
- *  环境变量（均可选，不填使用默认值）：
- *    UUID              全协议共用 UUID（不填则每次启动随机生成）
- *    NAME              节点名称前缀                    默认 sing-box
- *    PORT / WEB_PORT   探活 HTTP 端口                  默认 3000
- *    REALITY_SNI       Reality 握手域名（SNI）         默认 www.yahoo.com
- *    XPATH             vmess/trojan 共用 WS 路径       默认 /wo
- *    HOST              节点对外 IP/域名（不填自动获取公网 IP）
- *    KOMARI_ENDPOINT   komari 面板地址，如 https://v.cws.kdns.fr
- *    KOMARI_TOKEN      komari 节点 Token
- *    KOMARI_AGENT_URL  komari-agent 下载地址（可选，覆盖默认地址）
- *    ARGO_DOMAIN       Argo 隧道域名
- *    ARGO_AUTH         Argo 隧道 Token 或 JSON 凭证
- *    ARGO_PORT         Argo 隧道本地端口（vmess/trojan ws 入口） 默认 8011
- *    CHAT_ID           Telegram chat_id（与 BOT_TOKEN 齐全才推送）
- *    BOT_TOKEN         Telegram bot_token（与 CHAT_ID 齐全才推送）
- *    SINGBOX_AMD64_URL     sing-box 下载源（amd64）    默认 https://amd64.ssss.nyc.mn/sb
- *    SINGBOX_ARM64_URL     sing-box 下载源（arm64）    默认 https://arm64.ssss.nyc.mn/sb
- *    CLOUDFLARED_AMD64_URL cloudflared 下载源（amd64） 默认 https://amd64.ssss.nyc.mn/bot
- *    CLOUDFLARED_ARM64_URL cloudflared 下载源（arm64） 默认 https://arm64.ssss.nyc.mn/bot
- *    GH_PROXY          GitHub 加速前缀（用于 komari-agent 下载），如 https://ghproxy.net/
- *    ENABLE_HY2        是否启用 hysteria2（true/false，默认 false 不启用）
- *    ENABLE_TUIC       是否启用 tuic（true/false，默认 true）
- *                      ※ hy2 与 tuic 均为 UDP，PaaS 平台通常只能暴露一个
- * ============================================================================
- */
 
-'use strict';
-
-const { exec, spawn } = require('child_process');
-const fs = require('fs');
+const http = require("http");
+const axios = require("axios");
 const os = require('os');
-const path = require('path');
-const http = require('http');
-const https = require('https');
+const fs = require("fs");
+const path = require("path");
 const crypto = require('crypto');
+const { promisify } = require('util');
+const { exec: execCommand, execSync } = require('child_process');
+const exec = promisify(execCommand);
+const UPLOAD_URL = process.env.UPLOAD_URL || '';      // 节点或订阅自动上传地址,需填写部署Merge-sub项目后的首页地址,例如：https://merge.xxx.com
+const PROJECT_URL = process.env.PROJECT_URL || '';    // 需要上传订阅或保活时需填写项目分配的url,例如：https://google.com
+const AUTO_ACCESS = process.env.AUTO_ACCESS || false; // false关闭自动保活，true开启,需同时填写PROJECT_URL变量
+const FILE_PATH = process.env.FILE_PATH || '.npm';    // 运行目录,sub节点文件保存目录
+const SUB_PATH = process.env.SUB_PATH || 'sub';       // 订阅路径
+const PORT = process.env.SERVER_PORT || process.env.PORT || 3000;        // http服务订阅端口
+const UUID = process.env.UUID || ''; // 全协议共用UUID,不同平台建议修改,否则可能覆盖
+const KOMARI_ENDPOINT = process.env.KOMARI_ENDPOINT || '';  // komari面板地址,例如：https://v.cws.kdns.fr
+const KOMARI_TOKEN = process.env.KOMARI_TOKEN || '';        // komari节点Token,两个变量不全不安装监控端
+const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';          // 固定隧道域名,留空即启用临时隧道
+const ARGO_AUTH = process.env.ARGO_AUTH || '';              // 固定隧道密钥json或token,留空即启用临时隧道,json获取地址：https://json.zone.id
+const ARGO_PORT = process.env.ARGO_PORT || 8011;            // 固定隧道端口,使用token需在cloudflare后台设置和这里一致
+const S5_PORT = process.env.S5_PORT || '';                  // socks5端口，支持多端口的可以填写，否则留空
+const HY2_PORT = process.env.HY2_PORT || '';                // hy2端口，支持多端口的可以填写，否则留空
+const REALITY_PORT = process.env.REALITY_PORT || '';        // reality端口，支持多端口的可以填写，否则留空
+const CFIP = process.env.CFIP || 'saas.sin.fan';            // 节点优选域名或优选ip
+const CFPORT = process.env.CFPORT || 443;                   // 节点优选域名或优选ip对应的端口
+const NAME = process.env.NAME || '';                        // 节点名称
+const CHAT_ID = process.env.CHAT_ID || '';                  // Telegram chat_id  两个变量不全不推送节点到TG 
+const BOT_TOKEN = process.env.BOT_TOKEN || '';              // Telegram bot_token 两个变量不全不推送节点到TG 
+const SHOW_LOG = !['false', 'disable', 'no'].includes((process.env.SHOW_LOG || 'true').toLowerCase()); // 是否显示日志输出，true/yes显示，false/disable/no屏蔽，默认显示
 
-/* ============================================================================
- * 一、用户配置区 —— 所有可修改项集中在此（修改一处全生效）
- * ========================================================================== */
-const ENV = process.env;
-
-const CONFIG = {
-  /** 节点名称前缀 */
-  name: ENV.NAME || 'sing-box',
-
-  /** 全协议共用 UUID（不填则每次启动随机生成，可用 UUID 环境变量固定） */
-  uuid: ENV.UUID || '',
-
-  /** 探活 HTTP 服务端口 */
-  webPort: Number(ENV.PORT || ENV.WEB_PORT || 3000),
-
-  /** Reality 握手 SNI（已提取为变量，直接改这里即可） */
-  realitySni: ENV.REALITY_SNI || 'www.yahoo.com',
-
-  /** vmess / trojan 共用 WS 路径 */
-  wsPath: ENV.XPATH || '/wo',
-
-  /**
-   * 直连节点地址（仅 vless-reality / hysteria2 / tuic 使用，须填服务器公网 IP 或解析到服务器的域名）
-   * 注意：与 ARGO_DOMAIN 无关 —— vmess/trojan 走 Cloudflare 隧道，地址固定用 ARGO_DOMAIN
-   * 留空则自动获取公网 IP
-   */
-  host: ENV.HOST || '',
-
-  /** komari 监控（替代 NEZHA）：面板地址 + 节点 Token */
-  komariEndpoint: ENV.KOMARI_ENDPOINT || ENV.KOMARI_SERVER || '',
-  komariToken: ENV.KOMARI_TOKEN || '',
-  komariAgentUrl: ENV.KOMARI_AGENT_URL || '',
-
-  /** Cloudflare Argo 隧道 */
-  argoDomain: ENV.ARGO_DOMAIN || '',
-  argoAuth: ENV.ARGO_AUTH || '',
-
-  /** 组件开关（hy2 / tuic 均为 UDP，PaaS 平台一般只能暴露一个；hy2 默认关闭，设 ENABLE_HY2=true 开启） */
-  enableHysteria2: (ENV.ENABLE_HY2 || '').toLowerCase() === 'true',
-  enableTuic: (ENV.ENABLE_TUIC || 'true').toLowerCase() !== 'false',
-
-  /** GitHub 加速前缀（用于 komari-agent 下载） */
-  ghProxy: ENV.GH_PROXY || '',
-};
-
-/* ---- Telegram 推送配置 ---- */
-const CHAT_ID = process.env.CHAT_ID || '';                  // Telegram chat_id  两个变量不全不推送节点到TG
-const BOT_TOKEN = process.env.BOT_TOKEN || '';              // Telegram bot_token 两个变量不全不推送节点到TG
-
-/* ---- Argo 隧道本地端口 ---- */
-const ARGO_PORT = process.env.ARGO_PORT || 8011;            // Argo 隧道本地端口：vmess 用，trojan 用 ARGO_PORT+1
-
-/* ---- 下载源（默认镜像加速直连，可用环境变量覆盖） ---- */
-const SINGBOX_AMD64_URL = process.env.SINGBOX_AMD64_URL || 'https://amd64.ssss.nyc.mn/sb';
-const SINGBOX_ARM64_URL = process.env.SINGBOX_ARM64_URL || 'https://arm64.ssss.nyc.mn/sb';
-const CLOUDFLARED_AMD64_URL = process.env.CLOUDFLARED_AMD64_URL || 'https://amd64.ssss.nyc.mn/bot';
-const CLOUDFLARED_ARM64_URL = process.env.CLOUDFLARED_ARM64_URL || 'https://arm64.ssss.nyc.mn/bot';
-
-/* ============================================================================
- * 二、协议公共配置 —— 各协议相同项统一前置（修改一处全生效）
- *     协议块内只书写自身差异项，公共项全部引用此处
- * ========================================================================== */
-const SHARED = {
-  /** 所有协议共用同一 UUID */
-  get uuid() {
-    return CONFIG.uuid;
-  },
-
-  /** Reality / Hysteria2 / TUIC 共用 SNI */
-  get sni() {
-    return CONFIG.realitySni;
-  },
-
-  /** uTLS 指纹 */
-  fingerprint: 'chrome',
-
-  /** vless flow */
-  flow: 'xtls-rprx-vision',
-
-  /** vmess / trojan 共用 WS 传输 */
-  ws: {
-    type: 'ws',
-    path: CONFIG.wsPath,
-  },
-
-  /** 本地监听地址（vmess / trojan 经 Argo 隧道，仅本机访问） */
-  listenLocal: '127.0.0.1',
-
-  /** 直连监听地址（vless / hysteria2 / tuic 共用） */
-  listenAll: '::',
-
-  /** hysteria2 / tuic 共用 ALPN */
-  alpn: ['h3'],
-};
-
-/* ============================================================================
- * 三、运行时状态与通用工具函数
- * ========================================================================== */
-const BIN_DIR = path.join(__dirname, 'bin');
-const SB_CONFIG_FILE = path.join(__dirname, 'config.json');
-const NODES_FILE = path.join(__dirname, 'nodes.txt');
-
-/** 本脚本拉起的子进程，退出时统一清理（避免残留重复进程） */
-const children = [];
-let shuttingDown = false;
-
-/**
- * 注册子进程并统一处理启动错误（避免 spawn 失败变成未捕获异常拖垮脚本）
- * @param fatal true 时启动失败将退出脚本（仅用于 sing-box 等关键组件）
- */
-function watchChild(child, tag, fatal = false) {
-  children.push(child);
-  child.on('error', (err) => {
-    log(tag, `进程启动失败: ${err.message}`);
-    if (fatal && !shuttingDown) {
-      log(tag, '关键组件启动失败，脚本退出以便容器重启');
-      process.exit(1);
-    }
-  });
-  return child;
+// 控制日志输出
+if (!SHOW_LOG) {
+  console.log = () => {};
+  console.error = () => {};
+}
+function alwaysLog(msg) {
+  process.stdout.write(msg + '\n');
 }
 
-/** 统一日志格式 */
-function log(tag, msg) {
-  console.log(`[${new Date().toISOString()}] [${tag}] ${msg}`);
+// 创建运行文件夹
+if (!fs.existsSync(FILE_PATH)) {
+  fs.mkdirSync(FILE_PATH);
+  // console.log(`${FILE_PATH} is created`);
+} else {
+  // console.log(`${FILE_PATH} already exists`);
 }
 
-/** 将命令包装为 Promise */
-function run(cmd) {
-  return new Promise((resolve, reject) => {
-    exec(cmd, (err, stdout, stderr) => {
-      if (err) reject(new Error(`${cmd} 执行失败: ${stderr || err.message}`));
-      else resolve(stdout);
-    });
-  });
-}
-
-/** 下载文件（自动跟随重定向） */
-function downloadFile(url, dest, redirects = 5) {
-  return new Promise((resolve, reject) => {
-    const client = url.startsWith('https:') ? https : http;
-    const req = client.get(url, (res) => {
-      // 跟随重定向
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        res.resume();
-        if (redirects <= 0) return reject(new Error(`重定向次数过多: ${url}`));
-        return resolve(downloadFile(new URL(res.headers.location, url).href, dest, redirects - 1));
-      }
-      if (res.statusCode !== 200) {
-        res.resume();
-        return reject(new Error(`下载失败 HTTP ${res.statusCode}: ${url}`));
-      }
-      const file = fs.createWriteStream(dest);
-      res.pipe(file);
-      file.on('finish', () => file.close(() => resolve(dest)));
-      file.on('error', (err) => {
-        file.close();
-        fs.unlink(dest, () => reject(err));
-      });
-    });
-    req.on('error', reject);
-  });
-}
-
-/** 拼接下载地址（自动套用 GitHub 加速前缀） */
-function ghUrl(url) {
-  return CONFIG.ghProxy ? CONFIG.ghProxy.replace(/\/?$/, '/') + url : url;
-}
-
-/** 获取当前系统对应的架构名 */
-function getArch() {
-  switch (os.arch()) {
-    case 'x64':
-      return 'amd64';
-    case 'arm64':
-      return 'arm64';
-    default:
-      throw new Error(`不支持的架构: ${os.arch()}`);
-  }
-}
-
-/** 获取 UUID：优先使用环境变量，否则每次启动随机生成 */
-function resolveUuid() {
-  if (!CONFIG.uuid) CONFIG.uuid = crypto.randomUUID();
-  return CONFIG.uuid;
-}
-
-/** 获取公网 IP（失败返回 null，不阻塞流程） */
-function fetchPublicIp() {
-  return new Promise((resolve) => {
-    const req = https.get('https://api.ipify.org', { timeout: 3000 }, (res) => {
-      let data = '';
-      res.on('data', (chunk) => (data += chunk));
-      res.on('end', () => resolve(data.trim() || null));
-    });
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(null);
-    });
-    req.on('error', () => resolve(null));
-  });
-}
-
-/* ============================================================================
- * 四、sing-box 配置生成
- * ========================================================================== */
-
-/**
- * 生成 sing-box 配置
- * 各协议块仅书写自身差异项（端口 / flow / reality 密钥等），
- * UUID、SNI、指纹、WS 传输等公共项全部引用 SHARED。
- */
-function buildSingBoxConfig({ privateKey, shortId, tlsCert }) {
-  /** hysteria2 / tuic 共用的服务端 TLS（自签证书） */
-  const SERVER_TLS =
-    tlsCert && {
-      enabled: true,
-      certificate_path: tlsCert.cert,
-      key_path: tlsCert.key,
-    };
-
-  const inbounds = [
-    /* ---- vmess + ws（经 Argo 隧道，本地明文监听） ---- */
-    {
-      type: 'vmess',
-      tag: 'vmess-ws',
-      listen: SHARED.listenLocal,
-      listen_port: Number(ARGO_PORT),
-      users: [{ uuid: SHARED.uuid }], // 新版 sing-box 已移除 alter_id 字段，不能再写
-      transport: { ...SHARED.ws },
-    },
-
-    /* ---- trojan + ws（经 Argo 隧道，本地明文监听） ---- */
-    {
-      type: 'trojan',
-      tag: 'trojan-ws',
-      listen: SHARED.listenLocal,
-      listen_port: Number(ARGO_PORT) + 1, // trojan 本地端口 = ARGO_PORT + 1（同一端口不能被两个入站绑定）
-      users: [{ password: SHARED.uuid }],
-      transport: { ...SHARED.ws },
-    },
-
-    /* ---- vless + reality（直连） ---- */
-    {
-      type: 'vless',
-      tag: 'vless-reality',
-      listen: SHARED.listenAll,
-      listen_port: 443,
-      users: [{ uuid: SHARED.uuid, flow: SHARED.flow }],
-      tls: {
-        enabled: true,
-        server_name: SHARED.sni,
-        // 注意：utls 是客户端特性，服务端入站不支持（新版 sing-box 会报 unknown field），
-        // 指纹已通过节点链接的 fp 参数下发给客户端
-        reality: {
-          enabled: true,
-          handshake: { server: SHARED.sni, server_port: 443 },
-          private_key: privateKey,
-          short_id: [shortId],
-        },
-      },
-    },
-  ];
-
-  /* ---- hysteria2（UDP，可选） ---- */
-  if (SERVER_TLS && CONFIG.enableHysteria2) {
-    inbounds.push({
-      type: 'hysteria2',
-      tag: 'hysteria2',
-      listen: SHARED.listenAll,
-      listen_port: 10002,
-      users: [{ password: SHARED.uuid }],
-      tls: { ...SERVER_TLS, alpn: SHARED.alpn },
-    });
-  }
-
-  /* ---- tuic（UDP，可选） ---- */
-  if (SERVER_TLS && CONFIG.enableTuic) {
-    inbounds.push({
-      type: 'tuic',
-      tag: 'tuic',
-      listen: SHARED.listenAll,
-      listen_port: 10003,
-      users: [{ uuid: SHARED.uuid, password: SHARED.uuid }],
-      congestion_control: 'bbr',
-      udp_relay_mode: 'native',
-      tls: { ...SERVER_TLS, alpn: SHARED.alpn },
-    });
-  }
-
-  return {
-    log: { level: 'warning', timestamp: true },
-    inbounds,
-    outbounds: [{ type: 'direct', tag: 'direct' }],
-  };
-}
-
-/* ============================================================================
- * 五、组件安装与启动
- * ========================================================================== */
-
-/** 下载 sing-box 二进制（默认走镜像源，直连下载免解压） */
-async function downloadSingBox() {
-  const bin = path.join(BIN_DIR, 'sing-box');
-  if (fs.existsSync(bin)) return bin;
-  const arch = getArch();
-  const url = arch === 'arm64' ? SINGBOX_ARM64_URL : SINGBOX_AMD64_URL;
-  log('sing-box', `下载 sing-box (${arch}) ...`);
-  await downloadFile(url, bin);
-  fs.chmodSync(bin, 0o755);
-  return bin;
-}
-
-/** 生成 Reality 密钥对 */
-async function generateRealityKeys(sbBin) {
-  const out = await run(`"${sbBin}" generate reality-keypair`);
-  const privateKey = (out.match(/PrivateKey:\s*(\S+)/) || [])[1];
-  const publicKey = (out.match(/PublicKey:\s*(\S+)/) || [])[1];
-  if (!privateKey || !publicKey) throw new Error('Reality 密钥对生成失败');
-  return { privateKey, publicKey };
-}
-
-/** 生成 hysteria2 / tuic 共用的自签证书（openssl 不可用时返回 null） */
-async function generateTlsCert() {
-  const cert = path.join(BIN_DIR, 'cert.pem');
-  const key = path.join(BIN_DIR, 'key.pem');
+// 端口检查
+function isValidPort(port) {
   try {
-    await run(
-      `openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes ` +
-        `-keyout "${key}" -out "${cert}" -subj "/CN=${SHARED.sni}"`
+    if (port === null || port === undefined || port === '') return false;
+    if (typeof port === 'string' && port.trim() === '') return false;
+    const portNum = parseInt(port);
+    if (isNaN(portNum)) return false;
+    if (portNum < 1 || portNum > 65535) return false;
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+// 生成随机6位字符
+function generateRandomName() {
+  const characters = 'abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  return result;
+}
+
+// 全局常量
+let subContent = null;
+let privateKey = '';
+let publicKey = '';
+const webName = generateRandomName();
+const botName = generateRandomName();
+const phpName = generateRandomName();
+let phpPath = path.join(FILE_PATH, phpName);
+let webPath = path.join(FILE_PATH, webName);
+let botPath = path.join(FILE_PATH, botName);
+let subPath = path.join(FILE_PATH, 'sub.txt');
+let listPath = path.join(FILE_PATH, 'list.txt');
+let bootLogPath = path.join(FILE_PATH, 'boot.log');
+let configPath = path.join(FILE_PATH, 'config.json');
+let certPath = path.resolve(FILE_PATH, 'cert.pem');
+let keyPath = path.resolve(FILE_PATH, 'private.key');
+
+// 如果订阅器上存在历史运行节点则先删除
+function deleteNodes() {
+  try {
+    if (!UPLOAD_URL) return;
+    if (!fs.existsSync(subPath)) return;
+
+    let fileContent;
+    try {
+      fileContent = fs.readFileSync(subPath, 'utf-8');
+    } catch {
+      return null;
+    }
+
+    const decoded = Buffer.from(fileContent, 'base64').toString('utf-8');
+    const nodes = decoded.split('\n').filter(line =>
+      /(vless|vmess|trojan|hysteria2|socks):\/\//.test(line)
     );
-    return { cert, key };
+
+    if (nodes.length === 0) return;
+
+    axios.post(`${UPLOAD_URL}/api/delete-nodes`,
+      JSON.stringify({ nodes }),
+      { headers: { 'Content-Type': 'application/json' } }
+    ).catch((error) => {
+      return null;
+    });
+    return null;
   } catch (err) {
-    log('tls', `openssl 不可用，已跳过 hysteria2 / tuic: ${err.message}`);
     return null;
   }
 }
 
-/** 启动 sing-box 主进程 */
-function startSingBox(sbBin) {
-  log('sing-box', '启动 sing-box ...');
-  const child = watchChild(
-    spawn(sbBin, ['run', '-c', SB_CONFIG_FILE], { stdio: 'inherit' }),
-    'sing-box',
-    true
-  );
-  child.on('exit', (code) => {
-    if (shuttingDown) return;
-    log('sing-box', `进程异常退出（代码 ${code}），脚本即将退出以便容器重启`);
-    process.exit(code || 1);
-  });
+// 清理历史文件
+function cleanupOldFiles() {
+  try {
+    const files = fs.readdirSync(FILE_PATH);
+    files.forEach(file => {
+      const filePath = path.join(FILE_PATH, file);
+      try {
+        const stat = fs.statSync(filePath);
+        if (stat.isFile()) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (err) {
+        // 忽略所有错误，不记录日志
+      }
+    });
+  } catch (err) {
+    // 忽略所有错误，不记录日志
+  }
 }
 
-/**
- * 安装并启动 komari 监控端（替代旧版 NEZHA）
- * 等价于: nohup ./komari-agent -e <endpoint> -t <token> &
- * 进程由本脚本统一管理，避免重启后残留重复 agent
- */
-async function setupKomari() {
-  if (!CONFIG.komariEndpoint || !CONFIG.komariToken) {
-    log('komari', '未配置 KOMARI_ENDPOINT / KOMARI_TOKEN，跳过监控端');
-    return;
-  }
-  const bin = path.join(BIN_DIR, 'komari-agent');
-  if (!fs.existsSync(bin)) {
-    const url =
-      CONFIG.komariAgentUrl ||
-      ghUrl(
-        `https://github.com/komari-monitor/komari-agent/releases/download/1.2.60/komari-agent-linux-${getArch()}`
-      );
-    log('komari', '下载 komari-agent ...');
-    await downloadFile(url, bin);
-    fs.chmodSync(bin, 0o755);
-  }
-  watchChild(
-    spawn(bin, ['-e', CONFIG.komariEndpoint, '-t', CONFIG.komariToken], { stdio: 'ignore' }),
-    'komari'
-  );
-  log('komari', `监控端已启动 → ${CONFIG.komariEndpoint}`);
+// crypto 生成 X25519 密钥对
+function generateX25519Keypair() {
+  const { publicKey: pubKey, privateKey: privKey } = crypto.generateKeyPairSync('x25519');
+  const privateKeyRaw = privKey.export({ type: 'pkcs8', format: 'der' }).subarray(-32);
+  const publicKeyRaw = pubKey.export({ type: 'spki', format: 'der' }).subarray(-32);
+  return {
+    privateKey: privateKeyRaw.toString('base64url'),
+    publicKey: publicKeyRaw.toString('base64url')
+  };
 }
 
-/** 安装并启动 Cloudflare Argo 隧道（vmess / trojan 的对外入口） */
-async function setupArgo() {
-  if (!CONFIG.argoDomain || !CONFIG.argoAuth) {
-    log('argo', '未配置 ARGO_DOMAIN / ARGO_AUTH，跳过 Argo 隧道');
-    return;
-  }
-  const bin = path.join(BIN_DIR, 'cloudflared');
-  if (!fs.existsSync(bin)) {
-    const arch = getArch();
-    const url = arch === 'arm64' ? CLOUDFLARED_ARM64_URL : CLOUDFLARED_AMD64_URL;
-    log('argo', `下载 cloudflared (${arch}) ...`);
-    await downloadFile(url, bin);
-    fs.chmodSync(bin, 0o755);
-  }
-
-  let args;
-  if (CONFIG.argoAuth.trim().startsWith('{')) {
-    // JSON 凭证方式
-    const jsonPath = path.join(BIN_DIR, 'tunnel.json');
-    fs.writeFileSync(jsonPath, CONFIG.argoAuth);
-    const tunnelId = String(JSON.parse(CONFIG.argoAuth).TunnelID || '');
-    args = ['tunnel', '--no-autoupdate', '--config', jsonPath, 'run', tunnelId];
-  } else {
-    // Token 方式
-    args = ['tunnel', '--no-autoupdate', 'run', '--token', CONFIG.argoAuth];
-  }
-
-  watchChild(spawn(bin, args, { stdio: 'ignore' }), 'argo');
-  log('argo', `隧道已启动 → ${CONFIG.argoDomain}`);
-}
-
-/** 启动探活 HTTP 服务（保持容器存活 / 健康检查） */
-function startWebServer() {
-  const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Hello, world! sing-box is running.\n');
-  });
-  server.listen(CONFIG.webPort, () =>
-    log('web', `探活服务已启动: http://0.0.0.0:${CONFIG.webPort}`)
-  );
-  return server;
-}
-
-/* ============================================================================
- * 六、节点信息输出
- * ========================================================================== */
-function printNodeLinks({ publicKey, shortId, hasUdp }) {
-  const host = CONFIG.host || '127.0.0.1';
-  const name = CONFIG.name;
-  const links = [];
-
-  /* vless + reality（直连） */
-  links.push(
-    `vless://${SHARED.uuid}@${host}:443?` +
-      `encryption=none&security=reality&sni=${SHARED.sni}&fp=${SHARED.fingerprint}` +
-      `&pbk=${publicKey}&sid=${shortId}&type=tcp&flow=${SHARED.flow}#${name}-reality`
-  );
-
-  /* vmess / trojan（依赖 Argo 隧道） */
-  if (CONFIG.argoDomain) {
-    const vmessJson = {
-      v: '2',
-      ps: `${name}-vmess`,
-      add: CONFIG.argoDomain,
-      port: '443',
-      id: SHARED.uuid,
-      aid: '0',
-      scy: 'auto',
-      net: 'ws',
-      type: 'none',
-      host: CONFIG.argoDomain,
-      path: SHARED.ws.path,
-      tls: 'tls',
-      sni: CONFIG.argoDomain,
-      fp: SHARED.fingerprint,
-    };
-    links.push('vmess://' + Buffer.from(JSON.stringify(vmessJson)).toString('base64'));
-    links.push(
-      `trojan://${SHARED.uuid}@${CONFIG.argoDomain}:443?security=tls&sni=${CONFIG.argoDomain}` +
-        `&fp=${SHARED.fingerprint}&type=ws&host=${CONFIG.argoDomain}` +
-        `&path=${encodeURIComponent(SHARED.ws.path)}#${name}-trojan`
-    );
-  }
-
-  /* hysteria2 / tuic（UDP 直连） */
-  if (hasUdp) {
-    links.push(
-      `hysteria2://${SHARED.uuid}@${host}:10002/?sni=${SHARED.sni}&insecure=1&alpn=h3#${name}-hy2`
-    );
-    links.push(
-      `tuic://${SHARED.uuid}:${SHARED.uuid}@${host}:10003?sni=${SHARED.sni}` +
-        `&congestion_control=bbr&udp_relay_mode=native&alpn=h3&allow_insecure=1#${name}-tuic`
-    );
-  }
-
-  console.log('\n========== 节点信息 ==========');
-  links.forEach((link) => console.log(link + '\n'));
-  console.log('==============================\n');
-  return links;
-}
-
-/** 保存节点信息到 nodes.txt（与本脚本同目录，每次启动覆盖更新） */
-function saveNodeLinks(links) {
-  const content = [
-    '========== 节点信息 ==========',
-    ...links,
-    '==============================',
-  ].join('\n');
-  fs.writeFileSync(NODES_FILE, content + '\n');
-  log('save', `节点信息已保存: ${NODES_FILE}`);
-}
-
-/**
- * 推送节点信息到 Telegram
- * CHAT_ID 与 BOT_TOKEN 两个变量不全时不推送
- */
-function pushToTelegram(links) {
-  if (!CHAT_ID || !BOT_TOKEN) {
-    log('telegram', 'CHAT_ID / BOT_TOKEN 未配置齐全，跳过 TG 推送');
-    return;
-  }
-
-  // Telegram 单条消息上限 4096 字符，超长时按链接分段发送
-  const chunks = [];
-  let current = '';
-  for (const link of links) {
-    if (current && current.length + link.length + 2 > 3800) {
-      chunks.push(current);
-      current = link;
-    } else {
-      current = current ? `${current}\n\n${link}` : link;
+// X25519 密钥对生成或加载
+function generateOrLoadKeyPair() {
+  const keyFilePath = path.join(FILE_PATH, 'key.txt');
+  if (fs.existsSync(keyFilePath)) {
+    const content = fs.readFileSync(keyFilePath, 'utf8');
+    const privateKeyMatch = content.match(/PrivateKey:\s*(.*)/);
+    const publicKeyMatch = content.match(/PublicKey:\s*(.*)/);
+    if (privateKeyMatch && publicKeyMatch) {
+      privateKey = privateKeyMatch[1].trim();
+      publicKey = publicKeyMatch[1].trim();
+      console.log('Private Key:', privateKey);
+      console.log('Public Key:', publicKey);
+      return;
     }
   }
-  if (current) chunks.push(current);
-
-  chunks.forEach((text, index) => {
-    const title =
-      chunks.length > 1
-        ? `🚀 sing-box 节点信息 (${index + 1}/${chunks.length})`
-        : '🚀 sing-box 节点信息';
-    const payload = JSON.stringify({
-      chat_id: CHAT_ID,
-      text: `${title}\n\n${text}`,
-      disable_web_page_preview: true,
-    });
-    const req = https.request(
-      {
-        hostname: 'api.telegram.org',
-        path: `/bot${BOT_TOKEN}/sendMessage`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
-        },
-        timeout: 10000,
-      },
-      (res) => {
-        res.resume();
-        if (res.statusCode === 200) {
-          log('telegram', `节点信息已推送到 Telegram (${index + 1}/${chunks.length})`);
-        } else {
-          log('telegram', `推送失败 HTTP ${res.statusCode}`);
-        }
-      }
-    );
-    req.on('timeout', () => {
-      req.destroy();
-      log('telegram', '推送超时');
-    });
-    req.on('error', (err) => log('telegram', `推送失败: ${err.message}`));
-    req.write(payload);
-    req.end();
-  });
+  const keypair = generateX25519Keypair();
+  privateKey = keypair.privateKey;
+  publicKey = keypair.publicKey;
+  fs.writeFileSync(keyFilePath, `PrivateKey: ${privateKey}\nPublicKey: ${publicKey}\n`, 'utf8');
+  console.log('Private Key:', privateKey);
+  console.log('Public Key:', publicKey);
 }
 
-/* ============================================================================
- * 七、主流程
- * ========================================================================== */
-async function main() {
-  fs.mkdirSync(BIN_DIR, { recursive: true });
-  resolveUuid();
-  log('init', `UUID: ${CONFIG.uuid}`);
+// TLS 证书生成
+const FALLBACK_EC_KEY =
+  '-----BEGIN EC PARAMETERS-----\n' +
+  'BggqhkjOPQMBBw==\n' +
+  '-----END EC PARAMETERS-----\n' +
+  '-----BEGIN EC PRIVATE KEY-----\n' +
+  'MHcCAQEEIM4792SEtPqIt1ywqTd/0bYidBqpYV/++siNnfBYsdUYoAoGCCqGSM49\n' +
+  'AwEHoUQDQgAE1kHafPj07rJG+HboH2ekAI4r+e6TL38GWASANnngZreoQDF16ARa\n' +
+  '/TsyLyFoPkhLxSbehH/NBEjHtSZGaDhMqQ==\n' +
+  '-----END EC PRIVATE KEY-----\n';
 
-  if (!CONFIG.host) {
-    const ip = await fetchPublicIp();
-    if (ip) CONFIG.host = ip;
-    else log('init', '未能获取公网 IP，节点链接将使用 127.0.0.1（可用 HOST 环境变量指定）');
+const FALLBACK_CERT =
+  '-----BEGIN CERTIFICATE-----\n' +
+  'MIIBejCCASGgAwIBAgIUfWeQL3556PNJLp/veCFxGNj9crkwCgYIKoZIzj0EAwIw\n' +
+  'EzERMA8GA1UEAwwIYmluZy5jb20wHhcNMjUwOTE4MTgyMDIyWhcNMzUwOTE2MTgy\n' +
+  'MDIyWjATMREwDwYDVQQDDAhiaW5nLmNvbTBZMBMGByqGSM49AgEGCCqGSM49AwEH\n' +
+  'A0IABNZB2nz49O6yRvh26B9npACOK/nuky9/BlgEgDZ54Ga3qEAxdegEWv07Mi8h\n' +
+  'aD5IS8Um3oR/zQRIx7UmRmg4TKmjUzBRMB0GA1UdDgQWBBTV1cFID7UISE7PLTBR\n' +
+  'BfGbgkrMNzAfBgNVHSMEGDAWgBTV1cFID7UISE7PLTBRBfGbgkrMNzAPBgNVHRMB\n' +
+  'Af8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIAIDAJvg0vd/ytrQVvEcSm6XTlB+\n' +
+  'eQ6OFb9LbLYL9f+sAiAffoMbi4y/0YUSlTtz7as9S8/lciBF5VCUoVIKS+vX2g==\n' +
+  '-----END CERTIFICATE-----\n';
+
+function ensureTlsCertificates(certPath, keyPath) {
+  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) return;
+  fs.mkdirSync(path.dirname(certPath), { recursive: true });
+  try {
+    execSync('openssl version', { stdio: 'ignore' });
+    execSync(`openssl ecparam -genkey -name prime256v1 -out "${keyPath}"`, { stdio: 'ignore' });
+    execSync(`openssl req -new -x509 -days 3650 -key "${keyPath}" -out "${certPath}" -subj "/CN=bing.com"`, { stdio: 'ignore' });
+    return;
+  } catch (e) { /* openssl not available */ }
+  fs.writeFileSync(keyPath, FALLBACK_EC_KEY);
+  fs.writeFileSync(certPath, FALLBACK_CERT);
+}
+
+// 计算证书的 SHA-256 指纹，优先使用 openssl，不可用时用 Node.js crypto 兜底
+function getCertificateFingerprint(certPath) {
+  // 方案1: 优先用 openssl
+  try {
+    const result = execSync(
+      `openssl x509 -noout -fingerprint -sha256 -in "${certPath}"`,
+      { encoding: 'utf8', timeout: 3000 }
+    ).trim();
+    const match = result.match(/=(.+)$/);
+    if (match && match[1]) {
+      return match[1].toUpperCase();
+    }
+  } catch (e) {
+    // openssl 不可用，继续用 Node.js crypto
   }
 
-  const sbBin = await downloadSingBox();
-  const { privateKey, publicKey } = await generateRealityKeys(sbBin);
-  const shortId = crypto.randomBytes(4).toString('hex');
-  const tlsCert =
-    CONFIG.enableHysteria2 || CONFIG.enableTuic ? await generateTlsCert() : null;
+  // 方案2: Node.js crypto 兜底
+  try {
+    const certData = fs.readFileSync(certPath, 'utf8');
+    const derMatch = certData.match(/-----BEGIN CERTIFICATE-----([\s\S]+?)-----END CERTIFICATE-----/);
+    if (!derMatch) return '';
+    const derBase64 = derMatch[1].replace(/\s/g, '');
+    const derBuffer = Buffer.from(derBase64, 'base64');
+    const hash = crypto.createHash('sha256').update(derBuffer).digest('hex');
+    return hash.match(/.{2}/g).join(':').toUpperCase();
+  } catch (error) {
+    console.error('Failed to calculate certificate fingerprint:', error);
+    return '';
+  }
+}
 
-  fs.writeFileSync(
-    SB_CONFIG_FILE,
-    JSON.stringify(buildSingBoxConfig({ privateKey, shortId, tlsCert }), null, 2)
-  );
-  log('sing-box', `配置已生成: ${SB_CONFIG_FILE}`);
+// 生成xr-ay配置文件
+async function generateConfig() {
+  const config = {
+    log: { access: '/dev/null', error: '/dev/null', loglevel: 'none' },
+    inbounds: [
+      { tag: 'vless-fallback-in', port: ARGO_PORT, listen: '::', protocol: 'vless', settings: { clients: [{ id: UUID, flow: 'xtls-rprx-vision' }], decryption: 'none', fallbacks: [{ dest: 3001 }, { path: "/vless-argo", dest: 3002 }, { path: "/vmess-argo", dest: 3003 }, { path: "/trojan-argo", dest: 3004 }] }, streamSettings: { network: 'tcp' } },
+      { tag: 'vless-tcp-in', port: 3001, listen: "127.0.0.1", protocol: "vless", settings: { clients: [{ id: UUID }], decryption: "none" }, streamSettings: { network: "tcp", security: "none" } },
+      { tag: 'vless-ws-in', port: 3002, listen: "127.0.0.1", protocol: "vless", settings: { clients: [{ id: UUID, level: 0 }], decryption: "none" }, streamSettings: { network: "ws", security: "none", wsSettings: { path: "/vless-argo" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
+      { tag: 'vmess-ws-in', port: 3003, listen: "127.0.0.1", protocol: "vmess", settings: { clients: [{ id: UUID, alterId: 0 }] }, streamSettings: { network: "ws", wsSettings: { path: "/vmess-argo" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
+      { tag: 'trojan-ws-in', port: 3004, listen: "127.0.0.1", protocol: "trojan", settings: { clients: [{ password: UUID }] }, streamSettings: { network: "ws", security: "none", wsSettings: { path: "/trojan-argo" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
+    ],
+    dns: { servers: ["https+local://8.8.8.8/dns-query"] },
+    outbounds: [{ protocol: "freedom", tag: "direct" }, { protocol: "blackhole", tag: "block" }]
+  };
 
-  startSingBox(sbBin);
-  // komari / argo 安装或启动失败只记日志，不影响节点运行
-  await setupKomari().catch((err) => log('komari', `安装/启动失败(不影响节点): ${err.message}`));
-  await setupArgo().catch((err) => log('argo', `启动失败(不影响节点): ${err.message}`));
-  startWebServer();
+  // VLESS Reality 配置
+  if (isValidPort(REALITY_PORT)) {
+    config.inbounds.push({
+      tag: "vless-in",
+      listen: "::",
+      port: parseInt(REALITY_PORT),
+      protocol: "vless",
+      settings: {
+        clients: [{ id: UUID, flow: "xtls-rprx-vision" }],
+        decryption: "none"
+      },
+      streamSettings: {
+        network: "raw",
+        security: "reality",
+        realitySettings: {
+          show: false,
+          dest: "www.iij.ad.jp:443",
+          xver: 0,
+          serverNames: ["www.iij.ad.jp"],
+          privateKey: privateKey,
+          shortIds: [""]
+        }
+      }
+    });
+  }
 
-  const links = printNodeLinks({
-    publicKey,
-    shortId,
-    hasUdp: !!tlsCert && (CONFIG.enableHysteria2 || CONFIG.enableTuic),
+  // Hysteria2 配置
+  if (isValidPort(HY2_PORT)) {
+    config.inbounds.push({
+      tag: "hysteria-in",
+      listen: "::",
+      port: parseInt(HY2_PORT),
+      protocol: "hysteria",
+      settings: {
+        version: 2,
+        clients: [{ auth: UUID }]
+      },
+      streamSettings: {
+        network: "hysteria",
+        hysteriaSettings: {
+          version: 2,
+          masquerade: {
+            type: "proxy",
+            url: "https://bing.com"
+          }
+        },
+        security: "tls",
+        tlsSettings: {
+          alpn: ["h3"],
+          certificates: [
+            {
+              certificateFile: certPath,
+              keyFile: keyPath
+            }
+          ]
+        }
+      }
+    });
+  }
+
+  // S5 配置
+  if (isValidPort(S5_PORT)) {
+    config.inbounds.push({
+      tag: "s5-in",
+      listen: "::",
+      port: parseInt(S5_PORT),
+      protocol: "socks",
+      settings: {
+        auth: "password",
+        accounts: [
+          {
+            user: UUID.substring(0, 8),
+            pass: UUID.slice(-12)
+          }
+        ],
+        udp: true
+      }
+    });
+  }
+
+  fs.writeFileSync(path.join(FILE_PATH, 'config.json'), JSON.stringify(config, null, 2));
+}
+
+// 判断系统架构
+function getSystemArchitecture() {
+  const arch = os.arch();
+  if (arch === 'arm' || arch === 'arm64' || arch === 'aarch64') {
+    return 'arm';
+  } else {
+    return 'amd';
+  }
+}
+
+// 下载对应系统架构的依赖文件
+function downloadFile(fileName, fileUrl, callback) {
+  const filePath = fileName;
+  const tempFilePath = `${filePath}.download`;
+
+  if (!fs.existsSync(FILE_PATH)) {
+    fs.mkdirSync(FILE_PATH, { recursive: true });
+  }
+
+  const writer = fs.createWriteStream(tempFilePath);
+
+  axios({
+    method: 'get',
+    url: fileUrl,
+    responseType: 'stream',
+  })
+    .then(response => {
+      response.data.pipe(writer);
+
+      writer.on('finish', () => {
+        writer.close((closeError) => {
+          if (closeError) {
+            const errorMessage = `Download ${path.basename(filePath)} failed: ${closeError.message}`;
+            fs.unlink(tempFilePath, () => { });
+            console.error(errorMessage);
+            callback(errorMessage);
+            return;
+          }
+          try {
+            fs.renameSync(tempFilePath, filePath);
+          } catch (renameError) {
+            const errorMessage = `Download ${path.basename(filePath)} failed: ${renameError.message}`;
+            fs.unlink(tempFilePath, () => { });
+            console.error(errorMessage);
+            callback(errorMessage);
+            return;
+          }
+          console.log(`Download ${path.basename(filePath)} successfully`);
+          callback(null, filePath);
+        });
+      });
+
+      writer.on('error', err => {
+        fs.unlink(tempFilePath, () => { });
+        const errorMessage = `Download ${path.basename(filePath)} failed: ${err.message}`;
+        console.error(errorMessage);
+        callback(errorMessage);
+      });
+    })
+    .catch(err => {
+      fs.unlink(tempFilePath, () => { });
+      const errorMessage = `Download ${path.basename(filePath)} failed: ${err.message}`;
+      console.error(errorMessage);
+      callback(errorMessage);
+    });
+}
+
+// 下载并运行依赖文件
+async function downloadFilesAndRun() {
+  const architecture = getSystemArchitecture();
+  const filesToDownload = getFilesForArchitecture(architecture);
+
+  if (filesToDownload.length === 0) {
+    console.log(`Can't find a file for the current architecture`);
+    return;
+  }
+
+  const downloadPromises = filesToDownload.map(fileInfo => {
+    return new Promise((resolve, reject) => {
+      const tryDownload = (urlIndex) => {
+        downloadFile(fileInfo.fileName, fileInfo.fileUrls[urlIndex], (err, filePath) => {
+          if (!err) {
+            resolve(filePath);
+            return;
+          }
+
+          if (urlIndex + 1 < fileInfo.fileUrls.length) {
+            console.log(`Retrying ${path.basename(fileInfo.fileName)} from backup source`);
+            tryDownload(urlIndex + 1);
+            return;
+          }
+
+          reject(err);
+        });
+      };
+
+      tryDownload(0);
+    });
   });
-  saveNodeLinks(links);
-  pushToTelegram(links);
+
+  try {
+    await Promise.all(downloadPromises);
+  } catch (err) {
+    console.error('Error downloading files:', err);
+    return;
+  }
+
+  function authorizeFiles(filePaths) {
+    const newPermissions = 0o775;
+    filePaths.forEach(absoluteFilePath => {
+      if (fs.existsSync(absoluteFilePath)) {
+        try {
+          fs.chmodSync(absoluteFilePath, newPermissions);
+          console.log(`Empowerment success for ${absoluteFilePath}: ${newPermissions.toString(8)}`);
+        } catch (err) {
+          console.error(`Empowerment failed for ${absoluteFilePath}: ${err}`);
+        }
+      }
+    });
+  }
+  const filesToAuthorize = [phpPath, webPath, botPath];
+  authorizeFiles(filesToAuthorize);
+
+  // 运行komari监控端（替代旧版NEZHA）
+  if (KOMARI_ENDPOINT && KOMARI_TOKEN) {
+    const command = `nohup ${phpPath} -e ${KOMARI_ENDPOINT} -t ${KOMARI_TOKEN} >/dev/null 2>&1 &`;
+    try {
+      await exec(command);
+      console.log(`${phpName} is running`);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error(`komari running error: ${error}`);
+    }
+  } else {
+    console.log('KOMARI variable is empty,skip running');
+  }
+
+  // 运行xr-ay
+  const command1 = `nohup ${webPath} -c ${FILE_PATH}/config.json >/dev/null 2>&1 &`;
+  try {
+    await exec(command1);
+    console.log(`${webName} is running`);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  } catch (error) {
+    console.error(`web running error: ${error}`);
+  }
+
+  // 运行cloud-fared
+  if (fs.existsSync(botPath)) {
+    let args;
+
+    if (ARGO_AUTH.match(/^[A-Z0-9a-z=]{120,250}$/)) {
+      args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 run --token ${ARGO_AUTH}`;
+    } else if (ARGO_AUTH.match(/TunnelSecret/)) {
+      args = `tunnel --edge-ip-version auto --config "${path.resolve(FILE_PATH, 'tunnel.yml')}" run`;
+    } else {
+      args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile "${path.resolve(bootLogPath)}" --loglevel info --url http://localhost:${ARGO_PORT}`;
+    }
+
+    try {
+      await exec(`nohup "${path.resolve(botPath)}" ${args} >/dev/null 2>&1 &`);
+      console.log(`${botName} is running`);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    } catch (error) {
+      console.error(`Error executing command: ${error}`);
+    }
+  }
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 }
 
-/** 退出时统一清理子进程 */
-function shutdown() {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  log('exit', '正在退出，清理子进程 ...');
-  children.forEach((child) => child.kill('SIGKILL'));
-  process.exit(0);
-}
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+// 根据系统架构返回对应的url
+function getFilesForArchitecture(architecture) {
+  const baseUrl = architecture === 'arm' ? 'https://arm64.oooen.com' : 'https://amd64.oooen.com';
+  const backupUrl = architecture === 'arm' ? 'https://arm64.ssss.nyc.mn' : 'https://amd64.ssss.nyc.mn';
+  const baseFiles = [
+    { fileName: webPath, fileUrls: [`${baseUrl}/web`, `${backupUrl}/web`] },
+    { fileName: botPath, fileUrls: [`${baseUrl}/bot`, `${backupUrl}/bot`] }
+  ];
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
+  // komari-agent（替代旧版NEZHA的agent/v1）
+  if (KOMARI_ENDPOINT && KOMARI_TOKEN) {
+    const komariAsset = architecture === 'arm' ? 'arm64' : 'amd64';
+    baseFiles.unshift({
+      fileName: phpPath,
+      fileUrls: [`https://github.com/komari-monitor/komari-agent/releases/download/1.2.60/komari-agent-linux-${komariAsset}`]
+    });
+  }
+
+  return baseFiles;
+}
+
+// 获取固定隧道json
+function argoType() {
+  if (!ARGO_AUTH || !ARGO_DOMAIN) {
+    console.log("ARGO_DOMAIN or ARGO_AUTH is empty, use quick tunnels");
+    return;
+  }
+
+  if (ARGO_AUTH.includes('TunnelSecret')) {
+    fs.writeFileSync(path.join(FILE_PATH, 'tunnel.json'), ARGO_AUTH);
+    const tunnelYaml = `
+  tunnel: ${ARGO_AUTH.split('"')[11]}
+  credentials-file: ${path.join(FILE_PATH, 'tunnel.json')}
+  protocol: http2
+  
+  ingress:
+    - hostname: ${ARGO_DOMAIN}
+      service: http://localhost:${ARGO_PORT}
+      originRequest:
+        noTLSVerify: true
+    - service: http_status:404
+  `;
+    fs.writeFileSync(path.join(FILE_PATH, 'tunnel.yml'), tunnelYaml);
+  } else {
+    console.log(`Using token connect to tunnel, please set ${ARGO_PORT} in clouudflare`);
+  }
+}
+
+async function waitForQuickTunnelLog(timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      if (fs.existsSync(bootLogPath)) {
+        const content = fs.readFileSync(bootLogPath, 'utf-8');
+        if (/trycloudflare\.com/.test(content)) return content;
+      }
+    } catch (error) {
+      // 日志文件可能仍在创建中
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  return '';
+}
+
+// 获取临时隧道domain
+async function extractDomains() {
+  let argoDomain;
+
+  if (ARGO_AUTH && ARGO_DOMAIN) {
+    argoDomain = ARGO_DOMAIN;
+    console.log('ARGO_DOMAIN:', argoDomain);
+    await generateLinks(argoDomain);
+  } else {
+    try {
+      const fileContent = await waitForQuickTunnelLog();
+      const lines = fileContent.split('\n');
+      const argoDomains = [];
+      lines.forEach((line) => {
+        const domainMatch = line.match(/https?:\/\/([^ ]*trycloudflare\.com)\/?/);
+        if (domainMatch) {
+          const domain = domainMatch[1];
+          argoDomains.push(domain);
+        }
+      });
+
+      if (argoDomains.length > 0) {
+        argoDomain = argoDomains[0];
+        console.log('ArgoDomain:', argoDomain);
+        await generateLinks(argoDomain);
+      } else {
+        console.log('ArgoDomain not found, re-running bot to obtain ArgoDomain');
+        fs.unlinkSync(path.join(FILE_PATH, 'boot.log'));
+        async function killBotProcess() {
+          try {
+            if (process.platform === 'win32') {
+              await exec(`taskkill /f /im ${botName}.exe > nul 2>&1`);
+            } else {
+              await exec(`pkill -f "[${botName.charAt(0)}]${botName.substring(1)}" > /dev/null 2>&1`);
+            }
+          } catch (error) {
+            // 忽略输出
+          }
+        }
+        killBotProcess();
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        const args = `tunnel --edge-ip-version auto --no-autoupdate --protocol http2 --logfile "${path.resolve(bootLogPath)}" --loglevel info --url http://localhost:${ARGO_PORT}`;
+        try {
+          await exec(`nohup "${path.resolve(botPath)}" ${args} >/dev/null 2>&1 &`);
+          console.log(`${botName} is running`);
+          await new Promise((resolve) => setTimeout(resolve, 6000));
+          await extractDomains();
+        } catch (error) {
+          console.error(`Error executing command: ${error}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error reading boot.log:', error);
+    }
+  }
+}
+
+// 获取isp信息
+async function getMetaInfo() {
+  try {
+    const response1 = await axios.get('https://api.ip.sb/geoip', { headers: { 'User-Agent': 'Mozilla/5.0', timeout: 3000 } });
+    if (response1.data && response1.data.country_code && response1.data.isp) {
+      return `${response1.data.country_code}-${response1.data.isp}`.replace(/\s+/g, '_');
+    }
+  } catch (error) {
+    try {
+      const response2 = await axios.get('http://ip-api.com/json', { headers: { 'User-Agent': 'Mozilla/5.0', timeout: 3000 } });
+      if (response2.data && response2.data.status === 'success' && response2.data.countryCode && response2.data.org) {
+        return `${response2.data.countryCode}-${response2.data.org}`.replace(/\s+/g, '_');
+      }
+    } catch (error) {
+      // console.error('Backup API also failed');
+    }
+  }
+  return 'Unknown';
+}
+
+// 获取服务器公网IP
+async function getServerIP() {
+  let serverIP = '';
+  try {
+    const ipv4Response = await axios.get('http://ipv4.ip.sb', { timeout: 3000 });
+    serverIP = ipv4Response.data.trim();
+  } catch (err) {
+    try {
+      serverIP = execSync('curl -sm 3 ipv4.ip.sb').toString().trim();
+    } catch (curlErr) {
+      try {
+        const ipv6Response = await axios.get('http://ipv6.ip.sb', { timeout: 3000 });
+        serverIP = `[${ipv6Response.data.trim()}]`;
+      } catch (ipv6AxiosErr) {
+        try {
+          serverIP = `[${execSync('curl -sm 3 ipv6.ip.sb').toString().trim()}]`;
+        } catch (ipv6CurlErr) {
+          console.error('Failed to get IP address:', ipv6CurlErr.message);
+        }
+      }
+    }
+  }
+  return serverIP;
+}
+
+// 生成 list 和 sub 信息
+async function generateLinks(argoDomain) {
+  const ISP = await getMetaInfo();
+  const nodeName = NAME ? `${NAME}-${ISP}` : ISP;
+  const SERVER_IP = await getServerIP();
+
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const VMESS = { v: '2', ps: `${nodeName}`, add: CFIP, port: CFPORT, id: UUID, aid: '0', scy: 'auto', net: 'ws', type: 'none', host: argoDomain, path: '/vmess-argo?ed=2560', tls: 'tls', sni: argoDomain, alpn: '', fp: 'firefox' };
+      let subTxt = `
+vless://${UUID}@${CFIP}:${CFPORT}?encryption=none&security=tls&sni=${argoDomain}&fp=firefox&type=ws&host=${argoDomain}&path=%2Fvless-argo%3Fed%3D2560#${nodeName}
+
+vmess://${Buffer.from(JSON.stringify(VMESS)).toString('base64')}
+
+trojan://${UUID}@${CFIP}:${CFPORT}?security=tls&sni=${argoDomain}&fp=firefox&type=ws&host=${argoDomain}&path=%2Ftrojan-argo%3Fed%3D2560#${nodeName}
+    `;
+
+      // HY2_PORT是有效端口号时生成hysteria2节点
+      if (isValidPort(HY2_PORT)) {
+        const fingerprint = getCertificateFingerprint(certPath);
+        const fingerprintParam = fingerprint ? `&pinSHA256=${encodeURIComponent(fingerprint)}` : '';
+        const hysteriaNode = `\nhysteria2://${UUID}@${SERVER_IP}:${HY2_PORT}/?sni=www.bing.com&insecure=0&alpn=h3&obfs=none${fingerprintParam}#${nodeName}`;
+        subTxt += hysteriaNode;
+      }
+
+      // REALITY_PORT是有效端口号时生成reality节点
+      if (isValidPort(REALITY_PORT)) {
+        const vlessNode = `\nvless://${UUID}@${SERVER_IP}:${REALITY_PORT}?encryption=none&flow=xtls-rprx-vision&security=reality&sni=www.iij.ad.jp&fp=firefox&pbk=${publicKey}&type=tcp&headerType=none#${nodeName}`;
+        subTxt += vlessNode;
+      }
+
+      // S5_PORT是有效端口号时生成socks5节点
+      if (isValidPort(S5_PORT)) {
+        const S5_AUTH = Buffer.from(`${UUID.substring(0, 8)}:${UUID.slice(-12)}`).toString('base64');
+        const s5Node = `\nsocks://${S5_AUTH}@${SERVER_IP}:${S5_PORT}#${nodeName}`;
+        subTxt += s5Node;
+      }
+
+      console.log(Buffer.from(subTxt).toString('base64'));
+      fs.writeFileSync(subPath, Buffer.from(subTxt).toString('base64'));
+      fs.writeFileSync(listPath, subTxt, 'utf8');
+      console.log(`${FILE_PATH}/sub.txt saved successfully`);
+      // 将订阅内容保存到全局变量，供 http 服务器使用
+      subContent = Buffer.from(subTxt).toString('base64');
+      uploadNodes();
+      resolve(subTxt);
+    }, 2000);
+  });
+}
+
+// 自动上传节点或订阅
+async function uploadNodes() {
+  if (UPLOAD_URL && PROJECT_URL) {
+    const subscriptionUrl = `${PROJECT_URL}/${SUB_PATH}`;
+    const jsonData = {
+      subscription: [subscriptionUrl]
+    };
+    try {
+      const response = await axios.post(`${UPLOAD_URL}/api/add-subscriptions`, jsonData, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response && response.status === 200) {
+        console.log('Subscription uploaded successfully');
+        return response;
+      } else {
+        return null;
+      }
+    } catch (error) {
+      if (error.response) {
+        if (error.response.status === 400) {
+          // console.error('Subscription already exists');
+        }
+      }
+    }
+  } else if (UPLOAD_URL) {
+    if (!fs.existsSync(listPath)) return;
+    const content = fs.readFileSync(listPath, 'utf-8');
+    const nodes = content.split('\n').filter(line => /(vless|vmess|trojan|hysteria2|socks):\/\//.test(line));
+
+    if (nodes.length === 0) return;
+
+    const jsonData = JSON.stringify({ nodes });
+
+    try {
+      const response = await axios.post(`${UPLOAD_URL}/api/add-nodes`, jsonData, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response && response.status === 200) {
+        console.log('Nodes uploaded successfully');
+        return response;
+      } else {
+        return null;
+      }
+    } catch (error) {
+      return null;
+    }
+  } else {
+    // console.log('Skipping upload nodes');
+    return;
+  }
+}
+
+// 90s后删除相关文件
+function cleanFiles() {
+  setTimeout(() => {
+    const filesToDelete = [bootLogPath, configPath, webPath, botPath, listPath, certPath, keyPath];
+
+    if (KOMARI_ENDPOINT && KOMARI_TOKEN) {
+      filesToDelete.push(phpPath);
+    }
+
+    if (process.platform === 'win32') {
+      exec(`del /f /q ${filesToDelete.join(' ')} > nul 2>&1`, (error) => {
+        console.clear();
+        alwaysLog('App is running');
+        console.log('Thank you for using this script, enjoy!');
+      });
+    } else {
+      exec(`rm -rf ${filesToDelete.join(' ')} >/dev/null 2>&1`, (error) => {
+        console.clear();
+        alwaysLog('App is running');
+        console.log('Thank you for using this script, enjoy!');
+      });
+    }
+  }, 90000);
+}
+cleanFiles();
+
+// Telegram 推送节点
+async function sendTelegram() {
+  if (!BOT_TOKEN || !CHAT_ID) {
+    console.log('TG variables is empty, Skipping push nodes to TG');
+    return;
+  }
+  try {
+    const message = fs.readFileSync(subPath, 'utf8');
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+    const escapedName = NAME.replace(/[_*\[\]()~`>#+=|{}.!-]/g, '\\$&');
+    const params = {
+      chat_id: CHAT_ID,
+      text: `**${escapedName}节点推送**\n\`\`\`${message}\`\`\``,
+      parse_mode: 'MarkdownV2'
+    };
+    await axios.post(url, null, { params });
+    console.log('Telegram message sent successfully');
+  } catch (error) {
+    console.error('Failed to send Telegram message:', error.message);
+  }
+}
+
+// 自动访问项目URL
+async function AddVisitTask() {
+  if (!AUTO_ACCESS || !PROJECT_URL) {
+    console.log("Skipping adding automatic access task");
+    return;
+  }
+
+  try {
+    const response = await axios.post('https://oooo.serv00.net/add-url', {
+      url: PROJECT_URL
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(`automatic access task added successfully`);
+    return response;
+  } catch (error) {
+    console.error(`Add automatic access task faild: ${error.message}`);
+    return null;
+  }
+}
+
+// 主运行逻辑
+async function startserver() {
+  try {
+    argoType();
+    deleteNodes();
+    cleanupOldFiles();
+
+    // 生成 Reality 密钥对 (仅当 REALITY_PORT 开启才生成)
+    if (isValidPort(REALITY_PORT)) {
+      generateOrLoadKeyPair();
+    }
+
+    // 生成 TLS 证书 (用于 Hysteria2)
+    if (isValidPort(HY2_PORT)) {
+      ensureTlsCertificates(certPath, keyPath);
+    }
+
+    await generateConfig();
+    await downloadFilesAndRun();
+    await extractDomains();
+    await sendTelegram();
+    await AddVisitTask();
+  } catch (error) {
+    console.error('Error in startserver:', error);
+  }
+}
+startserver().catch(error => {
+  console.error('Unhandled error in startserver:', error);
 });
+
+// 创建 http 服务器
+const server = http.createServer(async (req, res) => {
+  const urlPath = req.url.split('?')[0];
+
+  // 订阅路由
+  if (urlPath === `/${SUB_PATH}`) {
+    if (subContent) {
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end(subContent);
+    } else {
+      try {
+        const fileContent = fs.readFileSync(subPath, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end(fileContent);
+      } catch (err) {
+        res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('Subscription content not yet available, please try again later.');
+      }
+    }
+    return;
+  }
+
+  // 根路由: /
+  if (urlPath === '/') {
+    try {
+      const filePath = path.join(__dirname, 'index.html');
+      const data = await fs.promises.readFile(filePath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(data);
+    } catch (err) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end("Hello world!<br><br>You can access /{SUB_PATH}(Default: /sub) to get your nodes!");
+    }
+    return;
+  }
+
+  res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+  res.end('Not Found');
+});
+
+server.listen(PORT, () => alwaysLog(`http server is running on ${PORT}!`));
