@@ -54,8 +54,7 @@ const CONFIG = {
   enableHysteria2: (ENV.ENABLE_HY2 || '').toLowerCase() === 'true',
   enableTuic: (ENV.ENABLE_TUIC || 'true').toLowerCase() !== 'false',
 
-  /** 下载配置 */
-  singBoxVersion: ENV.SING_BOX_VERSION || '1.11.3',
+  /** GitHub 加速前缀（用于 komari-agent 下载） */
   ghProxy: ENV.GH_PROXY || '',
 };
 
@@ -65,6 +64,12 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';              // Telegram bot_toke
 
 /* ---- Argo 隧道本地端口 ---- */
 const ARGO_PORT = process.env.ARGO_PORT || 8011;            // Argo 隧道本地端口：vmess 用，trojan 用 ARGO_PORT+1
+
+/* ---- 下载源（默认镜像加速直连，可用环境变量覆盖） ---- */
+const SINGBOX_AMD64_URL = process.env.SINGBOX_AMD64_URL || 'https://amd64.ssss.nyc.mn/sb';
+const SINGBOX_ARM64_URL = process.env.SINGBOX_ARM64_URL || 'https://arm64.ssss.nyc.mn/sb';
+const CLOUDFLARED_AMD64_URL = process.env.CLOUDFLARED_AMD64_URL || 'https://amd64.ssss.nyc.mn/bot';
+const CLOUDFLARED_ARM64_URL = process.env.CLOUDFLARED_ARM64_URL || 'https://arm64.ssss.nyc.mn/bot';
 
 /* ============================================================================
  * 二、协议公共配置 —— 各协议相同项统一前置（修改一处全生效）
@@ -292,25 +297,15 @@ function buildSingBoxConfig({ privateKey, shortId, tlsCert }) {
  * 五、组件安装与启动
  * ========================================================================== */
 
-/** 下载 sing-box 二进制并解压 */
+/** 下载 sing-box 二进制（默认走镜像源，直连下载免解压） */
 async function downloadSingBox() {
-  const arch = getArch();
-  const ver = CONFIG.singBoxVersion;
-  const url = ghUrl(
-    `https://github.com/SagerNet/sing-box/releases/download/v${ver}/sing-box-${ver}-linux-${arch}.tar.gz`
-  );
-  const tgz = path.join(BIN_DIR, 'sing-box.tar.gz');
   const bin = path.join(BIN_DIR, 'sing-box');
-
-  if (!fs.existsSync(bin)) {
-    log('sing-box', `下载 v${ver} (${arch}) ...`);
-    await downloadFile(url, tgz);
-    await run(`tar -xzf "${tgz}" -C "${BIN_DIR}"`);
-    fs.renameSync(path.join(BIN_DIR, `sing-box-${ver}-linux-${arch}`, 'sing-box'), bin);
-    fs.rmSync(tgz, { force: true });
-    fs.rmSync(path.join(BIN_DIR, `sing-box-${ver}-linux-${arch}`), { recursive: true, force: true });
-    fs.chmodSync(bin, 0o755);
-  }
+  if (fs.existsSync(bin)) return bin;
+  const arch = getArch();
+  const url = arch === 'arm64' ? SINGBOX_ARM64_URL : SINGBOX_AMD64_URL;
+  log('sing-box', `下载 sing-box (${arch}) ...`);
+  await downloadFile(url, bin);
+  fs.chmodSync(bin, 0o755);
   return bin;
 }
 
@@ -387,10 +382,9 @@ async function setupArgo() {
   }
   const bin = path.join(BIN_DIR, 'cloudflared');
   if (!fs.existsSync(bin)) {
-    const url = ghUrl(
-      `https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-${getArch()}`
-    );
-    log('argo', '下载 cloudflared ...');
+    const arch = getArch();
+    const url = arch === 'arm64' ? CLOUDFLARED_ARM64_URL : CLOUDFLARED_AMD64_URL;
+    log('argo', `下载 cloudflared (${arch}) ...`);
     await downloadFile(url, bin);
     fs.chmodSync(bin, 0o755);
   }
